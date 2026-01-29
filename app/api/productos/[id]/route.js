@@ -2,8 +2,9 @@ import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 
 // GET - Obtener producto por ID
-export async function GET(request, { params }) {
+export async function GET(request, context) {
   try {
+    const params = await context.params;
     const id = parseInt(params.id);
     
     if (isNaN(id)) {
@@ -44,8 +45,9 @@ export async function GET(request, { params }) {
 }
 
 // PUT - Actualizar producto por ID
-export async function PUT(request, { params }) {
+export async function PUT(request, context) {
   try {
+    const params = await context.params;
     const id = parseInt(params.id);
     
     if (isNaN(id)) {
@@ -92,8 +94,9 @@ export async function PUT(request, { params }) {
 }
 
 // DELETE - Eliminar producto por ID
-export async function DELETE(request, { params }) {
+export async function DELETE(request, context) {
   try {
+    const params = await context.params;
     const id = parseInt(params.id);
     
     if (isNaN(id)) {

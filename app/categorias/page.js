@@ -1,12 +1,13 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { FolderTree, Plus } from 'lucide-react';
+import { FolderTree, Plus, Edit, Trash2 } from 'lucide-react';
 
 export default function CategoriasPage() {
   const [categorias, setCategorias] = useState([]);
   const [loading, setLoading] = useState(true);
   const [showForm, setShowForm] = useState(false);
+  const [editingId, setEditingId] = useState(null);
   const [formData, setFormData] = useState({
     nombre: '',
     descripcion: '',
@@ -32,8 +33,11 @@ export default function CategoriasPage() {
     e.preventDefault();
 
     try {
-      const response = await fetch('/api/categorias', {
-        method: 'POST',
+      const url = editingId ? `/api/categorias/${editingId}` : '/api/categorias';
+      const method = editingId ? 'PUT' : 'POST';
+
+      const response = await fetch(url, {
+        method,
         headers: {
           'Content-Type': 'application/json',
         },
@@ -45,14 +49,49 @@ export default function CategoriasPage() {
         throw new Error(error.error);
       }
 
-      const newCategoria = await response.json();
-      setCategorias([...categorias, newCategoria]);
+      alert(editingId ? 'Categoría actualizada correctamente' : 'Categoría creada correctamente');
       setFormData({ nombre: '', descripcion: '' });
       setShowForm(false);
-      alert('Categoría creada correctamente');
+      setEditingId(null);
+      fetchCategorias();
     } catch (err) {
-      alert(err.message || 'Error al crear categoría');
+      alert(err.message || 'Error al guardar categoría');
     }
+  };
+
+  const handleEdit = (categoria) => {
+    setFormData({
+      nombre: categoria.nombre,
+      descripcion: categoria.descripcion || '',
+    });
+    setEditingId(categoria.id);
+    setShowForm(true);
+  };
+
+  const handleDelete = async (id) => {
+    if (!confirm('¿Estás seguro de eliminar esta categoría? Se eliminarán también todos los productos asociados.')) return;
+
+    try {
+      const response = await fetch(`/api/categorias/${id}`, {
+        method: 'DELETE',
+      });
+
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.error);
+      }
+
+      alert('Categoría eliminada correctamente');
+      fetchCategorias();
+    } catch (err) {
+      alert(err.message || 'Error al eliminar categoría');
+    }
+  };
+
+  const handleCancel = () => {
+    setShowForm(false);
+    setEditingId(null);
+    setFormData({ nombre: '', descripcion: '' });
   };
 
   if (loading) {
@@ -71,7 +110,11 @@ export default function CategoriasPage() {
           Categorías
         </h1>
         <button
-          onClick={() => setShowForm(!showForm)}
+          onClick={() => {
+            setShowForm(!showForm);
+            setEditingId(null);
+            setFormData({ nombre: '', descripcion: '' });
+          }}
           className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg flex items-center gap-2 transition-colors"
         >
           <Plus className="w-5 h-5" />
@@ -81,6 +124,10 @@ export default function CategoriasPage() {
 
       {showForm && (
         <form onSubmit={handleSubmit} className="bg-white rounded-lg shadow-md p-6 space-y-4">
+          <h2 className="text-xl font-semibold text-gray-800">
+            {editingId ? 'Editar Categoría' : 'Nueva Categoría'}
+          </h2>
+          
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">
               Nombre *
@@ -90,7 +137,7 @@ export default function CategoriasPage() {
               value={formData.nombre}
               onChange={(e) => setFormData({ ...formData, nombre: e.target.value })}
               required
-              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 text-gray-900"
             />
           </div>
 
@@ -102,7 +149,7 @@ export default function CategoriasPage() {
               value={formData.descripcion}
               onChange={(e) => setFormData({ ...formData, descripcion: e.target.value })}
               rows={3}
-              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 text-gray-900"
             />
           </div>
 
@@ -111,14 +158,11 @@ export default function CategoriasPage() {
               type="submit"
               className="bg-blue-600 hover:bg-blue-700 text-white py-2 px-4 rounded-md transition-colors"
             >
-              Crear Categoría
+              {editingId ? 'Actualizar' : 'Crear'} Categoría
             </button>
             <button
               type="button"
-              onClick={() => {
-                setShowForm(false);
-                setFormData({ nombre: '', descripcion: '' });
-              }}
+              onClick={handleCancel}
               className="bg-gray-300 hover:bg-gray-400 text-gray-800 py-2 px-4 rounded-md transition-colors"
             >
               Cancelar
@@ -146,10 +190,28 @@ export default function CategoriasPage() {
               className="bg-white rounded-lg shadow-md p-6 hover:shadow-lg transition-shadow"
             >
               <div className="flex items-start justify-between mb-2">
-                <h3 className="text-xl font-semibold text-gray-800">{categoria.nombre}</h3>
-                <span className="bg-blue-100 text-blue-800 text-xs font-semibold px-2 py-1 rounded">
-                  {categoria._count.productos} productos
-                </span>
+                <div className="flex-1">
+                  <h3 className="text-xl font-semibold text-gray-800">{categoria.nombre}</h3>
+                  <span className="bg-blue-100 text-blue-800 text-xs font-semibold px-2 py-1 rounded mt-1 inline-block">
+                    {categoria._count.productos} productos
+                  </span>
+                </div>
+                <div className="flex gap-2">
+                  <button
+                    onClick={() => handleEdit(categoria)}
+                    className="text-blue-600 hover:text-blue-900 p-1"
+                    title="Editar"
+                  >
+                    <Edit className="w-5 h-5" />
+                  </button>
+                  <button
+                    onClick={() => handleDelete(categoria.id)}
+                    className="text-red-600 hover:text-red-900 p-1"
+                    title="Eliminar"
+                  >
+                    <Trash2 className="w-5 h-5" />
+                  </button>
+                </div>
               </div>
               {categoria.descripcion && (
                 <p className="text-gray-600 text-sm mt-2">{categoria.descripcion}</p>

@@ -1,12 +1,13 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { Users, Plus, Mail, Phone, MapPin } from 'lucide-react';
+import { Users, Plus, Mail, Phone, MapPin, Edit, Trash2 } from 'lucide-react';
 
 export default function ProveedoresPage() {
   const [proveedores, setProveedores] = useState([]);
   const [loading, setLoading] = useState(true);
   const [showForm, setShowForm] = useState(false);
+  const [editingId, setEditingId] = useState(null);
   const [formData, setFormData] = useState({
     nombre: '',
     telefono: '',
@@ -34,8 +35,11 @@ export default function ProveedoresPage() {
     e.preventDefault();
 
     try {
-      const response = await fetch('/api/proveedores', {
-        method: 'POST',
+      const url = editingId ? `/api/proveedores/${editingId}` : '/api/proveedores';
+      const method = editingId ? 'PUT' : 'POST';
+
+      const response = await fetch(url, {
+        method,
         headers: {
           'Content-Type': 'application/json',
         },
@@ -47,14 +51,51 @@ export default function ProveedoresPage() {
         throw new Error(error.error);
       }
 
-      const newProveedor = await response.json();
-      setProveedores([...proveedores, newProveedor]);
+      alert(editingId ? 'Proveedor actualizado correctamente' : 'Proveedor creado correctamente');
       setFormData({ nombre: '', telefono: '', email: '', direccion: '' });
       setShowForm(false);
-      alert('Proveedor creado correctamente');
+      setEditingId(null);
+      fetchProveedores();
     } catch (err) {
-      alert(err.message || 'Error al crear proveedor');
+      alert(err.message || 'Error al guardar proveedor');
     }
+  };
+
+  const handleEdit = (proveedor) => {
+    setFormData({
+      nombre: proveedor.nombre,
+      telefono: proveedor.telefono || '',
+      email: proveedor.email || '',
+      direccion: proveedor.direccion || '',
+    });
+    setEditingId(proveedor.id);
+    setShowForm(true);
+  };
+
+  const handleDelete = async (id) => {
+    if (!confirm('¿Estás seguro de eliminar este proveedor? Se eliminarán también todos los productos asociados.')) return;
+
+    try {
+      const response = await fetch(`/api/proveedores/${id}`, {
+        method: 'DELETE',
+      });
+
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.error);
+      }
+
+      alert('Proveedor eliminado correctamente');
+      fetchProveedores();
+    } catch (err) {
+      alert(err.message || 'Error al eliminar proveedor');
+    }
+  };
+
+  const handleCancel = () => {
+    setShowForm(false);
+    setEditingId(null);
+    setFormData({ nombre: '', telefono: '', email: '', direccion: '' });
   };
 
   if (loading) {
@@ -73,7 +114,11 @@ export default function ProveedoresPage() {
           Proveedores
         </h1>
         <button
-          onClick={() => setShowForm(!showForm)}
+          onClick={() => {
+            setShowForm(!showForm);
+            setEditingId(null);
+            setFormData({ nombre: '', telefono: '', email: '', direccion: '' });
+          }}
           className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg flex items-center gap-2 transition-colors"
         >
           <Plus className="w-5 h-5" />
@@ -83,6 +128,10 @@ export default function ProveedoresPage() {
 
       {showForm && (
         <form onSubmit={handleSubmit} className="bg-white rounded-lg shadow-md p-6 space-y-4">
+          <h2 className="text-xl font-semibold text-gray-800">
+            {editingId ? 'Editar Proveedor' : 'Nuevo Proveedor'}
+          </h2>
+          
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">
               Nombre *
@@ -92,7 +141,7 @@ export default function ProveedoresPage() {
               value={formData.nombre}
               onChange={(e) => setFormData({ ...formData, nombre: e.target.value })}
               required
-              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 text-gray-900"
             />
           </div>
 
@@ -105,7 +154,7 @@ export default function ProveedoresPage() {
                 type="tel"
                 value={formData.telefono}
                 onChange={(e) => setFormData({ ...formData, telefono: e.target.value })}
-                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 text-gray-900"
               />
             </div>
 
@@ -117,7 +166,7 @@ export default function ProveedoresPage() {
                 type="email"
                 value={formData.email}
                 onChange={(e) => setFormData({ ...formData, email: e.target.value })}
-                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 text-gray-900"
               />
             </div>
           </div>
@@ -130,7 +179,7 @@ export default function ProveedoresPage() {
               value={formData.direccion}
               onChange={(e) => setFormData({ ...formData, direccion: e.target.value })}
               rows={2}
-              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 text-gray-900"
             />
           </div>
 
@@ -139,14 +188,11 @@ export default function ProveedoresPage() {
               type="submit"
               className="bg-blue-600 hover:bg-blue-700 text-white py-2 px-4 rounded-md transition-colors"
             >
-              Crear Proveedor
+              {editingId ? 'Actualizar' : 'Crear'} Proveedor
             </button>
             <button
               type="button"
-              onClick={() => {
-                setShowForm(false);
-                setFormData({ nombre: '', telefono: '', email: '', direccion: '' });
-              }}
+              onClick={handleCancel}
               className="bg-gray-300 hover:bg-gray-400 text-gray-800 py-2 px-4 rounded-md transition-colors"
             >
               Cancelar
@@ -174,10 +220,28 @@ export default function ProveedoresPage() {
               className="bg-white rounded-lg shadow-md p-6 hover:shadow-lg transition-shadow"
             >
               <div className="flex items-start justify-between mb-4">
-                <h3 className="text-xl font-semibold text-gray-800">{proveedor.nombre}</h3>
-                <span className="bg-purple-100 text-purple-800 text-xs font-semibold px-2 py-1 rounded">
-                  {proveedor._count.productos} productos
-                </span>
+                <div className="flex-1">
+                  <h3 className="text-xl font-semibold text-gray-800">{proveedor.nombre}</h3>
+                  <span className="bg-purple-100 text-purple-800 text-xs font-semibold px-2 py-1 rounded mt-1 inline-block">
+                    {proveedor._count.productos} productos
+                  </span>
+                </div>
+                <div className="flex gap-2">
+                  <button
+                    onClick={() => handleEdit(proveedor)}
+                    className="text-blue-600 hover:text-blue-900 p-1"
+                    title="Editar"
+                  >
+                    <Edit className="w-5 h-5" />
+                  </button>
+                  <button
+                    onClick={() => handleDelete(proveedor.id)}
+                    className="text-red-600 hover:text-red-900 p-1"
+                    title="Eliminar"
+                  >
+                    <Trash2 className="w-5 h-5" />
+                  </button>
+                </div>
               </div>
               
               <div className="space-y-2">

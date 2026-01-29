@@ -11,6 +11,7 @@ export default function EditarProductoPage({ params }) {
   const [proveedores, setProveedores] = useState([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [productId, setProductId] = useState(null);
   const [formData, setFormData] = useState({
     nombre: '',
     descripcion: '',
@@ -22,14 +23,25 @@ export default function EditarProductoPage({ params }) {
   });
 
   useEffect(() => {
-    fetchProducto();
-    fetchCategorias();
-    fetchProveedores();
-  }, []);
+    // Unwrap params Promise
+    const unwrapParams = async () => {
+      const unwrappedParams = await params;
+      setProductId(unwrappedParams.id);
+    };
+    unwrapParams();
+  }, [params]);
+
+  useEffect(() => {
+    if (productId) {
+      fetchProducto();
+      fetchCategorias();
+      fetchProveedores();
+    }
+  }, [productId]);
 
   const fetchProducto = async () => {
     try {
-      const response = await fetch(`/api/productos/${params.id}`);
+      const response = await fetch(`/api/productos/${productId}`);
       if (!response.ok) throw new Error('Producto no encontrado');
       const data = await response.json();
       setFormData({
@@ -74,7 +86,7 @@ export default function EditarProductoPage({ params }) {
     setSaving(true);
 
     try {
-      const response = await fetch(`/api/productos/${params.id}`, {
+      const response = await fetch(`/api/productos/${productId}`, {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json',
@@ -131,7 +143,7 @@ export default function EditarProductoPage({ params }) {
             value={formData.nombre}
             onChange={handleChange}
             required
-            className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+            className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 text-gray-900"
           />
         </div>
 
@@ -144,7 +156,7 @@ export default function EditarProductoPage({ params }) {
             value={formData.descripcion}
             onChange={handleChange}
             rows={3}
-            className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+            className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 text-gray-900"
           />
         </div>
 
@@ -158,7 +170,7 @@ export default function EditarProductoPage({ params }) {
               value={formData.categoriaId}
               onChange={handleChange}
               required
-              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 text-gray-900"
             >
               <option value="">Seleccionar...</option>
               {categorias.map((cat) => (
@@ -178,7 +190,7 @@ export default function EditarProductoPage({ params }) {
               value={formData.proveedorId}
               onChange={handleChange}
               required
-              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 text-gray-900"
             >
               <option value="">Seleccionar...</option>
               {proveedores.map((prov) => (
@@ -203,7 +215,7 @@ export default function EditarProductoPage({ params }) {
               required
               step="0.01"
               min="0"
-              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 text-gray-900"
             />
           </div>
 
@@ -217,7 +229,7 @@ export default function EditarProductoPage({ params }) {
               value={formData.stock}
               onChange={handleChange}
               min="0"
-              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 text-gray-900"
             />
           </div>
 
@@ -231,7 +243,7 @@ export default function EditarProductoPage({ params }) {
               value={formData.stockMinimo}
               onChange={handleChange}
               min="0"
-              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 text-gray-900"
             />
           </div>
         </div>

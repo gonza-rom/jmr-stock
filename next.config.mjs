@@ -1,7 +1,7 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   reactCompiler: true,
-  output: 'standalone',
+  // NO incluir output: 'standalone' para Vercel
   images: {
     unoptimized: true
   },

@@ -9,6 +9,10 @@
 !.yarn/plugins
 !.yarn/releases
 !.yarn/versions
+electron/
+forge.config.js
+out/
+dist/
 
 # testing
 /coverage

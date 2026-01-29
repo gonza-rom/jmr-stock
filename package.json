@@ -1,90 +1,43 @@
 {
   "name": "jmr-stock",
   "version": "1.0.0",
-  "description": "Sistema de Control de Stock",
-  "author": "Tu Nombre",
   "private": true,
-  "main": "electron/main.js",
   "scripts": {
     "dev": "next dev",
     "build": "next build",
-    "start": "electron-forge start",
+    "start": "next start",
     "lint": "eslint",
     "electron:dev": "concurrently \"cross-env BROWSER=none npm run dev\" \"wait-on http://localhost:3000 && electron .\"",
-    "electron:package": "electron-builder --dir",
-    "electron:build": "electron-builder",
-    "package": "electron-forge package",
-    "make": "electron-forge make"
+    "electron:package": "electron-forge package",
+    "electron:make": "electron-forge make"
   },
   "dependencies": {
-    "electron-is-dev": "^3.0.1",
-    "electron-squirrel-startup": "^1.0.1",
     "lucide-react": "^0.563.0",
     "next": "16.1.6",
     "react": "19.2.3",
-    "react-dom": "19.2.3"
+    "react-dom": "19.2.3",
+    "@prisma/client": "^5.22.0"
   },
   "devDependencies": {
-    "@electron-forge/cli": "^7.11.1",
-    "@electron-forge/maker-deb": "^7.11.1",
-    "@electron-forge/maker-rpm": "^7.11.1",
-    "@electron-forge/maker-squirrel": "^7.11.1",
-    "@electron-forge/maker-zip": "^7.11.1",
-    "@electron-forge/plugin-auto-unpack-natives": "^7.11.1",
-    "@electron-forge/plugin-fuses": "^7.11.1",
-    "@electron/fuses": "^1.8.0",
-    "@prisma/client": "^5.22.0",
     "@tailwindcss/postcss": "^4",
     "babel-plugin-react-compiler": "1.0.0",
-    "concurrently": "^9.1.2",
-    "cross-env": "^7.0.3",
-    "electron": "^33.2.0",
     "eslint": "^9",
     "eslint-config-next": "16.1.6",
     "prisma": "^5.22.0",
     "tailwindcss": "^4",
-    "wait-on": "^8.0.1"
+    "electron": "^33.2.0",
+    "electron-is-dev": "^3.0.1",
+    "concurrently": "^9.1.2",
+    "cross-env": "^7.0.3",
+    "wait-on": "^8.0.1",
+    "@electron-forge/cli": "^7.11.1",
+    "@electron-forge/maker-squirrel": "^7.11.1",
+    "@electron-forge/maker-zip": "^7.11.1",
+    "@electron-forge/plugin-auto-unpack-natives": "^7.11.1",
+    "@electron-forge/plugin-fuses": "^7.11.1",
+    "@electron/fuses": "^1.8.0"
   },
   "prisma": {
     "seed": "node prisma/seed.js"
-  },
-  "build": {
-    "appId": "com.jmrstock.app",
-    "productName": "JMR Stock",
-    "files": [
-      "!**/*",
-      "electron/**/*",
-      ".next/**/*",
-      "node_modules/**/*",
-      "package.json",
-      ".env.local",
-      "public/**/*"
-    ],
-    "extraResources": [
-      {
-        "from": ".env.local",
-        "to": ".env.local"
-      }
-    ],
-    "directories": {
-      "buildResources": "public",
-      "output": "dist"
-    },
-    "win": {
-      "target": [
-        {
-          "target": "nsis",
-          "arch": [
-            "x64"
-          ]
-        }
-      ]
-    },
-    "nsis": {
-      "oneClick": false,
-      "allowToChangeInstallationDirectory": true,
-      "createDesktopShortcut": true,
-      "createStartMenuShortcut": true
-    }
   }
 }

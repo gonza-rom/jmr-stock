@@ -1,0 +1,6 @@
+electron/
+forge.config.js
+out/
+dist/
+*.log
+.git/

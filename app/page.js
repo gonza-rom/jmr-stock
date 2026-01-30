@@ -1,46 +1,63 @@
-import { prisma } from '@/lib/prisma';
+'use client';
+
+import { useEffect, useState } from 'react';
 import { Package, AlertTriangle, TrendingUp, TrendingDown } from 'lucide-react';
 
-async function getStats() {
-  const [totalProductos, totalCategorias, totalProveedores, productosStockBajo, movimientosRecientes] = await Promise.all([
-    prisma.producto.count(),
-    prisma.categoria.count(),
-    prisma.proveedor.count(),
-    prisma.producto.findMany({
-      where: {
-        stock: {
-          lte: prisma.producto.fields.stockMinimo
-        }
-      },
-      include: {
-        categoria: true
-      },
-      orderBy: {
-        stock: 'asc'
-      }
-    }),
-    prisma.movimiento.findMany({
-      take: 5,
-      orderBy: {
-        createdAt: 'desc'
-      },
-      include: {
-        producto: true
-      }
-    })
-  ]);
+export default function Home() {
+  const [stats, setStats] = useState({
+    totalProductos: 0,
+    totalCategorias: 0,
+    totalProveedores: 0,
+    productosStockBajo: [],
+    movimientosRecientes: []
+  });
+  const [loading, setLoading] = useState(true);
 
-  return {
-    totalProductos,
-    totalCategorias,
-    totalProveedores,
-    productosStockBajo,
-    movimientosRecientes
+  useEffect(() => {
+    fetchStats();
+  }, []);
+
+  const fetchStats = async () => {
+    try {
+      // Fetch en paralelo para mejor performance
+      const [productosRes, categoriasRes, proveedoresRes, movimientosRes] = await Promise.all([
+        fetch('/api/productos'),
+        fetch('/api/categorias'),
+        fetch('/api/proveedores'),
+        fetch('/api/movimientos')
+      ]);
+
+      const [productos, categorias, proveedores, movimientos] = await Promise.all([
+        productosRes.json(),
+        categoriasRes.json(),
+        proveedoresRes.json(),
+        movimientosRes.json()
+      ]);
+
+      // Filtrar productos con stock bajo
+      const productosStockBajo = productos.filter(p => p.stock <= p.stockMinimo);
+
+      setStats({
+        totalProductos: productos.length,
+        totalCategorias: categorias.length,
+        totalProveedores: proveedores.length,
+        productosStockBajo: productosStockBajo,
+        movimientosRecientes: movimientos.slice(0, 5)
+      });
+    } catch (error) {
+      console.error('Error al cargar estadísticas:', error);
+    } finally {
+      setLoading(false);
+    }
   };
-}
 
-export default async function Home() {
-  const stats = await getStats();
+  if (loading) {
+    return (
+      <div className="flex justify-center items-center h-64">
+        <div className="text-xl text-gray-600">Cargando estadísticas...</div>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-8">

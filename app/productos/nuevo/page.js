@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { ArrowLeft } from 'lucide-react';
 import Link from 'next/link';
+import ImageUpload from '@/components/ImageUpload';
 
 export default function NuevoProductoPage() {
   const router = useRouter();
@@ -16,6 +17,7 @@ export default function NuevoProductoPage() {
     precio: '',
     stock: '0',
     stockMinimo: '5',
+    imagen: '',
     categoriaId: '',
     proveedorId: '',
   });
@@ -89,6 +91,13 @@ export default function NuevoProductoPage() {
       </div>
 
       <form onSubmit={handleSubmit} className="bg-white rounded-lg shadow-md p-6 space-y-4">
+        {/* Imagen del producto */}
+        <ImageUpload
+          value={formData.imagen}
+          onChange={(url) => setFormData({ ...formData, imagen: url })}
+          onRemove={() => setFormData({ ...formData, imagen: '' })}
+        />
+
         <div>
           <label className="block text-sm font-medium text-gray-700 mb-1">
             Nombre *
@@ -99,7 +108,7 @@ export default function NuevoProductoPage() {
             value={formData.nombre}
             onChange={handleChange}
             required
-            className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+            className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 text-gray-900"
           />
         </div>
 
@@ -112,7 +121,7 @@ export default function NuevoProductoPage() {
             value={formData.descripcion}
             onChange={handleChange}
             rows={3}
-            className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+            className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 text-gray-900"
           />
         </div>
 
@@ -126,7 +135,7 @@ export default function NuevoProductoPage() {
               value={formData.categoriaId}
               onChange={handleChange}
               required
-              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 text-gray-900"
             >
               <option value="">Seleccionar...</option>
               {categorias.map((cat) => (
@@ -146,7 +155,7 @@ export default function NuevoProductoPage() {
               value={formData.proveedorId}
               onChange={handleChange}
               required
-              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 text-gray-900"
             >
               <option value="">Seleccionar...</option>
               {proveedores.map((prov) => (
@@ -171,7 +180,7 @@ export default function NuevoProductoPage() {
               required
               step="0.01"
               min="0"
-              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 text-gray-900"
             />
           </div>
 
@@ -185,7 +194,7 @@ export default function NuevoProductoPage() {
               value={formData.stock}
               onChange={handleChange}
               min="0"
-              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 text-gray-900"
             />
           </div>
 
@@ -199,7 +208,7 @@ export default function NuevoProductoPage() {
               value={formData.stockMinimo}
               onChange={handleChange}
               min="0"
-              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 text-gray-900"
             />
           </div>
         </div>

@@ -2,17 +2,19 @@
 
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { Package, ShoppingCart, Users, FolderTree, TrendingUp } from 'lucide-react';
+import { Package, ShoppingCart, Users, FolderTree, TrendingUp, DollarSign, BarChart3 } from 'lucide-react';
 
 export default function Navbar() {
   const pathname = usePathname();
 
   const links = [
     { href: '/', label: 'Dashboard', icon: TrendingUp },
+    { href: '/ventas', label: 'Punto de Venta', icon: DollarSign },
     { href: '/productos', label: 'Productos', icon: Package },
     { href: '/categorias', label: 'Categorías', icon: FolderTree },
     { href: '/proveedores', label: 'Proveedores', icon: Users },
     { href: '/movimientos', label: 'Movimientos', icon: ShoppingCart },
+    { href: '/estadisticas', label: 'Estadísticas', icon: BarChart3 },
   ];
 
   return (

@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { ArrowLeft } from 'lucide-react';
 import Link from 'next/link';
+import ImageUpload from '@/components/ImageUpload';
 
 export default function EditarProductoPage({ params }) {
   const router = useRouter();
@@ -18,12 +19,12 @@ export default function EditarProductoPage({ params }) {
     precio: '',
     stock: '',
     stockMinimo: '',
+    imagen: '',
     categoriaId: '',
     proveedorId: '',
   });
 
   useEffect(() => {
-    // Unwrap params Promise
     const unwrapParams = async () => {
       const unwrappedParams = await params;
       setProductId(unwrappedParams.id);
@@ -50,6 +51,7 @@ export default function EditarProductoPage({ params }) {
         precio: data.precio.toString(),
         stock: data.stock.toString(),
         stockMinimo: data.stockMinimo.toString(),
+        imagen: data.imagen || '',
         categoriaId: data.categoriaId.toString(),
         proveedorId: data.proveedorId.toString(),
       });
@@ -133,6 +135,13 @@ export default function EditarProductoPage({ params }) {
       </div>
 
       <form onSubmit={handleSubmit} className="bg-white rounded-lg shadow-md p-6 space-y-4">
+        {/* Imagen del producto */}
+        <ImageUpload
+          value={formData.imagen}
+          onChange={(url) => setFormData({ ...formData, imagen: url })}
+          onRemove={() => setFormData({ ...formData, imagen: '' })}
+        />
+
         <div>
           <label className="block text-sm font-medium text-gray-700 mb-1">
             Nombre *

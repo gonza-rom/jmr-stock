@@ -58,7 +58,7 @@ export async function PUT(request, context) {
     }
 
     const body = await request.json();
-    const { nombre, descripcion, precio, stock, stockMinimo, categoriaId, proveedorId } = body;
+    const { nombre, descripcion, precio, stock, stockMinimo, imagen, categoriaId, proveedorId } = body;
 
     const updateData = {};
     if (nombre) updateData.nombre = nombre;
@@ -66,6 +66,7 @@ export async function PUT(request, context) {
     if (precio) updateData.precio = parseFloat(precio);
     if (stock !== undefined) updateData.stock = parseInt(stock);
     if (stockMinimo !== undefined) updateData.stockMinimo = parseInt(stockMinimo);
+    if (imagen !== undefined) updateData.imagen = imagen;
     if (categoriaId) updateData.categoriaId = parseInt(categoriaId);
     if (proveedorId) updateData.proveedorId = parseInt(proveedorId);
 

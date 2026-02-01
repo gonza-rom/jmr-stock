@@ -15,10 +15,8 @@ export async function GET() {
     });
     return NextResponse.json(productos);
   } catch (error) {
-    return NextResponse.json(
-      { error: 'Error al obtener productos' },
-      { status: 500 }
-    );
+    console.error('Error al obtener productos:', error);
+    return NextResponse.json({ error: 'Error al obtener productos' }, { status: 500 });
   }
 }
 
@@ -26,9 +24,9 @@ export async function GET() {
 export async function POST(request) {
   try {
     const body = await request.json();
-    const { nombre, descripcion, precio, stock, stockMinimo, categoriaId, proveedorId } = body;
+    const { nombre, descripcion, precio, stock, stockMinimo, imagen, categoriaId, proveedorId, codigoBarras } = body;
 
-    if (!nombre || !precio || categoriaId === undefined || proveedorId === undefined) {
+    if (!nombre || precio === undefined || precio === '' || !categoriaId || !proveedorId) {
       return NextResponse.json(
         { error: 'Faltan campos requeridos: nombre, precio, categoriaId, proveedorId' },
         { status: 400 }
@@ -38,12 +36,14 @@ export async function POST(request) {
     const producto = await prisma.producto.create({
       data: {
         nombre,
-        descripcion,
+        descripcion: descripcion || null,
         precio: parseFloat(precio),
         stock: stock ? parseInt(stock) : 0,
-        stockMinimo: stockMinimo ? parseInt(stockMinimo) : 5,
+        stockMinimo: stockMinimo !== undefined && stockMinimo !== '' ? parseInt(stockMinimo) : 5,
+        imagen: imagen || null,
         categoriaId: parseInt(categoriaId),
         proveedorId: parseInt(proveedorId),
+        codigoBarras: codigoBarras && codigoBarras.trim() !== '' ? codigoBarras.trim() : null,
       },
       include: {
         categoria: true,
@@ -53,10 +53,14 @@ export async function POST(request) {
 
     return NextResponse.json(producto, { status: 201 });
   } catch (error) {
+    if (error.code === 'P2002') {
+      // Unique constraint violation - puede ser codigoBarras duplicado
+      return NextResponse.json(
+        { error: 'El código de barras ya existe en otro producto' },
+        { status: 409 }
+      );
+    }
     console.error('Error al crear producto:', error);
-    return NextResponse.json(
-      { error: 'Error al crear producto' },
-      { status: 500 }
-    );
+    return NextResponse.json({ error: 'Error al crear producto' }, { status: 500 });
   }
 }

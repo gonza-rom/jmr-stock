@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation';
 import { ArrowLeft } from 'lucide-react';
 import Link from 'next/link';
 import ImageUpload from '@/components/ImageUpload';
+import BarcodeInput from '@/components/BarcodeInput';
 
 export default function NuevoProductoPage() {
   const router = useRouter();
@@ -18,6 +19,7 @@ export default function NuevoProductoPage() {
     stock: '0',
     stockMinimo: '5',
     imagen: '',
+    codigoBarras: '',
     categoriaId: '',
     proveedorId: '',
   });
@@ -81,6 +83,23 @@ export default function NuevoProductoPage() {
     });
   };
 
+  const handleBarcodeScanned = async (codigo) => {
+    // Buscar si ya existe un producto con ese código
+    try {
+      const response = await fetch(`/api/productos/barcode?codigo=${codigo}`);
+      if (response.ok) {
+        const producto = await response.json();
+        alert(`Este código ya está registrado para: ${producto.nombre}`);
+      } else {
+        // Código disponible
+        setFormData({ ...formData, codigoBarras: codigo });
+      }
+    } catch (err) {
+      // Si no existe, asignar el código
+      setFormData({ ...formData, codigoBarras: codigo });
+    }
+  };
+
   return (
     <div className="max-w-2xl mx-auto space-y-6">
       <div className="flex items-center gap-4">
@@ -124,6 +143,13 @@ export default function NuevoProductoPage() {
             className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 text-gray-900"
           />
         </div>
+
+        {/* Código de barras */}
+        <BarcodeInput
+          value={formData.codigoBarras}
+          onChange={(codigo) => setFormData({ ...formData, codigoBarras: codigo })}
+          onScanned={handleBarcodeScanned}
+        />
 
         <div className="grid grid-cols-2 gap-4">
           <div>

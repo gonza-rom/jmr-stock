@@ -3,7 +3,7 @@
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import Image from 'next/image';
-import { Plus, Edit, Trash2, Package, AlertTriangle, Search, Filter, X, DollarSign } from 'lucide-react';
+import { Plus, Edit, Trash2, Package, AlertTriangle, Search, Filter, X, DollarSign, Barcode, History } from 'lucide-react';
 
 export default function ProductosPage() {
   const [productos, setProductos] = useState([]);
@@ -59,12 +59,13 @@ export default function ProductosPage() {
   const aplicarFiltros = () => {
     let resultado = [...productos];
 
-    // Filtro por búsqueda (nombre o descripción)
+    // Filtro por búsqueda (nombre, descripción o código de barras)
     if (busqueda.trim()) {
       const busquedaLower = busqueda.toLowerCase();
       resultado = resultado.filter(p => 
         p.nombre.toLowerCase().includes(busquedaLower) ||
-        (p.descripcion && p.descripcion.toLowerCase().includes(busquedaLower))
+        (p.descripcion && p.descripcion.toLowerCase().includes(busquedaLower)) ||
+        (p.codigoBarras && p.codigoBarras.includes(busqueda))
       );
     }
 
@@ -187,7 +188,7 @@ export default function ProductosPage() {
             <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-5 h-5" />
             <input
               type="text"
-              placeholder="Buscar por nombre o descripción..."
+              placeholder="Buscar por nombre, descripción o código de barras..."
               value={busqueda}
               onChange={(e) => setBusqueda(e.target.value)}
               className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 text-gray-900"
@@ -406,6 +407,12 @@ export default function ProductosPage() {
                       {producto.descripcion && (
                         <div className="text-sm text-gray-500 line-clamp-1">{producto.descripcion}</div>
                       )}
+                      {producto.codigoBarras && (
+                        <div className="flex items-center gap-1 text-xs text-gray-400 mt-1">
+                          <Barcode className="w-3 h-3" />
+                          {producto.codigoBarras}
+                        </div>
+                      )}
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap">
                       <span className="px-2 py-1 inline-flex text-xs leading-5 font-semibold rounded-full bg-blue-100 text-blue-800">
@@ -439,6 +446,13 @@ export default function ProductosPage() {
                           title="Editar"
                         >
                           <Edit className="w-5 h-5" />
+                        </Link>
+                        <Link
+                          href={`/productos/precios/${producto.id}`}
+                          className="text-green-600 hover:text-green-900"
+                          title="Historial de precios"
+                        >
+                          <History className="w-5 h-5" />
                         </Link>
                         <button
                           onClick={() => handleDelete(producto.id)}

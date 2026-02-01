@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation';
 import { ArrowLeft } from 'lucide-react';
 import Link from 'next/link';
 import ImageUpload from '@/components/ImageUpload';
+import BarcodeInput from '@/components/BarcodeInput';
 
 export default function EditarProductoPage({ params }) {
   const router = useRouter();
@@ -20,6 +21,7 @@ export default function EditarProductoPage({ params }) {
     stock: '',
     stockMinimo: '',
     imagen: '',
+    codigoBarras: '',
     categoriaId: '',
     proveedorId: '',
   });
@@ -52,6 +54,7 @@ export default function EditarProductoPage({ params }) {
         stock: data.stock.toString(),
         stockMinimo: data.stockMinimo.toString(),
         imagen: data.imagen || '',
+        codigoBarras: data.codigoBarras || '',
         categoriaId: data.categoriaId.toString(),
         proveedorId: data.proveedorId.toString(),
       });
@@ -117,6 +120,24 @@ export default function EditarProductoPage({ params }) {
     });
   };
 
+  const handleBarcodeScanned = async (codigo) => {
+    // Buscar si ya existe un producto con ese código (excepto el actual)
+    try {
+      const response = await fetch(`/api/productos/barcode?codigo=${codigo}`);
+      if (response.ok) {
+        const producto = await response.json();
+        if (producto.id !== parseInt(productId)) {
+          alert(`Este código ya está registrado para: ${producto.nombre}`);
+          return;
+        }
+      }
+      setFormData({ ...formData, codigoBarras: codigo });
+    } catch (err) {
+      // Si no existe, asignar el código
+      setFormData({ ...formData, codigoBarras: codigo });
+    }
+  };
+
   if (loading) {
     return (
       <div className="flex justify-center items-center h-64">
@@ -168,6 +189,13 @@ export default function EditarProductoPage({ params }) {
             className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 text-gray-900"
           />
         </div>
+
+        {/* Código de barras */}
+        <BarcodeInput
+          value={formData.codigoBarras}
+          onChange={(codigo) => setFormData({ ...formData, codigoBarras: codigo })}
+          onScanned={handleBarcodeScanned}
+        />
 
         <div className="grid grid-cols-2 gap-4">
           <div>

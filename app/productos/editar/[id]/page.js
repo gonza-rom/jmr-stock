@@ -2,10 +2,9 @@
 
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { ArrowLeft } from 'lucide-react';
+import { ArrowLeft, Package } from 'lucide-react';
 import Link from 'next/link';
 import ImageUpload from '@/components/ImageUpload';
-import BarcodeInput from '@/components/BarcodeInput';
 
 export default function EditarProductoPage({ params }) {
   const router = useRouter();
@@ -17,11 +16,11 @@ export default function EditarProductoPage({ params }) {
   const [formData, setFormData] = useState({
     nombre: '',
     descripcion: '',
+    codigoProducto: '',
     precio: '',
     stock: '',
     stockMinimo: '',
     imagen: '',
-    codigoBarras: '',
     categoriaId: '',
     proveedorId: '',
   });
@@ -50,11 +49,11 @@ export default function EditarProductoPage({ params }) {
       setFormData({
         nombre: data.nombre,
         descripcion: data.descripcion || '',
+        codigoProducto: data.codigoProducto || '',
         precio: data.precio.toString(),
         stock: data.stock.toString(),
         stockMinimo: data.stockMinimo.toString(),
         imagen: data.imagen || '',
-        codigoBarras: data.codigoBarras || '',
         categoriaId: data.categoriaId.toString(),
         proveedorId: data.proveedorId.toString(),
       });
@@ -120,24 +119,6 @@ export default function EditarProductoPage({ params }) {
     });
   };
 
-  const handleBarcodeScanned = async (codigo) => {
-    // Buscar si ya existe un producto con ese código (excepto el actual)
-    try {
-      const response = await fetch(`/api/productos/barcode?codigo=${codigo}`);
-      if (response.ok) {
-        const producto = await response.json();
-        if (producto.id !== parseInt(productId)) {
-          alert(`Este código ya está registrado para: ${producto.nombre}`);
-          return;
-        }
-      }
-      setFormData({ ...formData, codigoBarras: codigo });
-    } catch (err) {
-      // Si no existe, asignar el código
-      setFormData({ ...formData, codigoBarras: codigo });
-    }
-  };
-
   if (loading) {
     return (
       <div className="flex justify-center items-center h-64">
@@ -156,7 +137,6 @@ export default function EditarProductoPage({ params }) {
       </div>
 
       <form onSubmit={handleSubmit} className="bg-white rounded-lg shadow-md p-6 space-y-4">
-        {/* Imagen del producto */}
         <ImageUpload
           value={formData.imagen}
           onChange={(url) => setFormData({ ...formData, imagen: url })}
@@ -164,9 +144,7 @@ export default function EditarProductoPage({ params }) {
         />
 
         <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1">
-            Nombre *
-          </label>
+          <label className="block text-sm font-medium text-gray-700 mb-1">Nombre *</label>
           <input
             type="text"
             name="nombre"
@@ -178,9 +156,7 @@ export default function EditarProductoPage({ params }) {
         </div>
 
         <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1">
-            Descripción
-          </label>
+          <label className="block text-sm font-medium text-gray-700 mb-1">Descripción</label>
           <textarea
             name="descripcion"
             value={formData.descripcion}
@@ -190,18 +166,25 @@ export default function EditarProductoPage({ params }) {
           />
         </div>
 
-        {/* Código de barras */}
-        <BarcodeInput
-          value={formData.codigoBarras}
-          onChange={(codigo) => setFormData({ ...formData, codigoBarras: codigo })}
-          onScanned={handleBarcodeScanned}
-        />
+        <div>
+          <label className="block text-sm font-medium text-gray-700 mb-1">
+            <Package className="w-4 h-4 inline mr-1" />
+            Código de Producto
+          </label>
+          <input
+            type="text"
+            name="codigoProducto"
+            value={formData.codigoProducto}
+            onChange={handleChange}
+            placeholder="Ej: ABC123, PROD-001"
+            className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 text-gray-900"
+          />
+          <p className="text-xs text-gray-500 mt-1">Código interno del producto (opcional)</p>
+        </div>
 
         <div className="grid grid-cols-2 gap-4">
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">
-              Categoría *
-            </label>
+            <label className="block text-sm font-medium text-gray-700 mb-1">Categoría *</label>
             <select
               name="categoriaId"
               value={formData.categoriaId}
@@ -211,17 +194,13 @@ export default function EditarProductoPage({ params }) {
             >
               <option value="">Seleccionar...</option>
               {categorias.map((cat) => (
-                <option key={cat.id} value={cat.id}>
-                  {cat.nombre}
-                </option>
+                <option key={cat.id} value={cat.id}>{cat.nombre}</option>
               ))}
             </select>
           </div>
 
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">
-              Proveedor *
-            </label>
+            <label className="block text-sm font-medium text-gray-700 mb-1">Proveedor *</label>
             <select
               name="proveedorId"
               value={formData.proveedorId}
@@ -231,9 +210,7 @@ export default function EditarProductoPage({ params }) {
             >
               <option value="">Seleccionar...</option>
               {proveedores.map((prov) => (
-                <option key={prov.id} value={prov.id}>
-                  {prov.nombre}
-                </option>
+                <option key={prov.id} value={prov.id}>{prov.nombre}</option>
               ))}
             </select>
           </div>
@@ -241,9 +218,7 @@ export default function EditarProductoPage({ params }) {
 
         <div className="grid grid-cols-3 gap-4">
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">
-              Precio *
-            </label>
+            <label className="block text-sm font-medium text-gray-700 mb-1">Precio *</label>
             <input
               type="number"
               name="precio"
@@ -257,9 +232,7 @@ export default function EditarProductoPage({ params }) {
           </div>
 
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">
-              Stock
-            </label>
+            <label className="block text-sm font-medium text-gray-700 mb-1">Stock</label>
             <input
               type="number"
               name="stock"
@@ -271,9 +244,7 @@ export default function EditarProductoPage({ params }) {
           </div>
 
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">
-              Stock Mínimo
-            </label>
+            <label className="block text-sm font-medium text-gray-700 mb-1">Stock Mínimo</label>
             <input
               type="number"
               name="stockMinimo"

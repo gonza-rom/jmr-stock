@@ -1,8 +1,10 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { Search, Plus, Minus, Trash2, ShoppingCart, DollarSign, User, CreditCard } from 'lucide-react';
+import { Search, Plus, Minus, Trash2, ShoppingCart, DollarSign, User, CreditCard, PlusCircle, ChevronLeft, ChevronRight } from 'lucide-react';
 import Image from 'next/image';
+
+const ITEMS_PER_PAGE = 12;
 
 export default function VentasPage() {
   const [productos, setProductos] = useState([]);
@@ -14,9 +16,25 @@ export default function VentasPage() {
   const [clienteDni, setClienteDni] = useState('');
   const [observaciones, setObservaciones] = useState('');
   const [procesando, setProcesando] = useState(false);
+  
+  const [paginaActual, setPaginaActual] = useState(1);
+  
+  const [mostrarModalProducto, setMostrarModalProducto] = useState(false);
+  const [categorias, setCategorias] = useState([]);
+  const [proveedores, setProveedores] = useState([]);
+  const [nuevoProducto, setNuevoProducto] = useState({
+    nombre: '',
+    codigoProducto: '',
+    precio: '',
+    categoriaId: '',
+    proveedorId: '',
+    stock: '1',
+  });
 
   useEffect(() => {
     fetchProductos();
+    fetchCategorias();
+    fetchProveedores();
   }, []);
 
   useEffect(() => {
@@ -24,12 +42,15 @@ export default function VentasPage() {
       const busquedaLower = busqueda.toLowerCase();
       const filtrados = productos.filter(p =>
         p.nombre.toLowerCase().includes(busquedaLower) ||
-        (p.descripcion && p.descripcion.toLowerCase().includes(busquedaLower))
+        (p.descripcion && p.descripcion.toLowerCase().includes(busquedaLower)) ||
+        (p.codigoProducto && p.codigoProducto.toLowerCase().includes(busquedaLower)) ||
+        (p.codigoBarras && p.codigoBarras.toLowerCase().includes(busquedaLower))
       );
       setProductosFiltrados(filtrados);
     } else {
       setProductosFiltrados(productos);
     }
+    setPaginaActual(1);
   }, [busqueda, productos]);
 
   const fetchProductos = async () => {
@@ -42,6 +63,32 @@ export default function VentasPage() {
       console.error('Error al cargar productos');
     }
   };
+
+  const fetchCategorias = async () => {
+    try {
+      const response = await fetch('/api/categorias');
+      const data = await response.json();
+      setCategorias(data);
+    } catch (err) {
+      console.error('Error al cargar categorías');
+    }
+  };
+
+  const fetchProveedores = async () => {
+    try {
+      const response = await fetch('/api/proveedores');
+      const data = await response.json();
+      setProveedores(data);
+    } catch (err) {
+      console.error('Error al cargar proveedores');
+    }
+  };
+
+  const totalPaginas = Math.ceil(productosFiltrados.length / ITEMS_PER_PAGE);
+  const productosPaginados = productosFiltrados.slice(
+    (paginaActual - 1) * ITEMS_PER_PAGE,
+    paginaActual * ITEMS_PER_PAGE
+  );
 
   const agregarAlCarrito = (producto) => {
     const itemExistente = carrito.find(item => item.productoId === producto.id);
@@ -136,7 +183,6 @@ export default function VentasPage() {
       
       alert(`Venta #${venta.id} realizada exitosamente!\nTotal: $${venta.total.toFixed(2)}`);
       
-      // Limpiar formulario
       setCarrito([]);
       setClienteNombre('');
       setClienteDni('');
@@ -144,7 +190,6 @@ export default function VentasPage() {
       setMetodoPago('EFECTIVO');
       setBusqueda('');
       
-      // Recargar productos para actualizar stock
       fetchProductos();
     } catch (err) {
       alert(err.message || 'Error al procesar la venta');
@@ -153,65 +198,143 @@ export default function VentasPage() {
     }
   };
 
+  const handleCrearProductoRapido = async (e) => {
+    e.preventDefault();
+
+    try {
+      const response = await fetch('/api/productos', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          ...nuevoProducto,
+          stockMinimo: 5,
+        }),
+      });
+
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.error);
+      }
+
+      const productoCreado = await response.json();
+      
+      alert('Producto creado exitosamente');
+      
+      agregarAlCarrito(productoCreado);
+      
+      setMostrarModalProducto(false);
+      setNuevoProducto({
+        nombre: '',
+        codigoProducto: '',
+        precio: '',
+        categoriaId: '',
+        proveedorId: '',
+        stock: '1',
+      });
+      
+      fetchProductos();
+    } catch (err) {
+      alert(err.message || 'Error al crear producto');
+    }
+  };
+
   return (
-    <div className="space-y-6">
-      <h1 className="text-3xl font-bold text-gray-800 flex items-center gap-2">
-        <ShoppingCart className="w-8 h-8" />
+    <div className="space-y-4 sm:space-y-6 pb-8">
+      <h1 className="text-2xl sm:text-3xl font-bold text-gray-800 dark:text-gray-100 flex items-center gap-2">
+        <ShoppingCart className="w-6 h-6 sm:w-8 sm:h-8" />
         Punto de Venta
       </h1>
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        {/* Panel izquierdo: Búsqueda de productos */}
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 sm:gap-6">
         <div className="lg:col-span-2 space-y-4">
-          {/* Búsqueda */}
-          <div className="bg-white rounded-lg shadow-md p-4">
-            <div className="relative">
-              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-5 h-5" />
-              <input
-                type="text"
-                placeholder="Buscar producto por nombre..."
-                value={busqueda}
-                onChange={(e) => setBusqueda(e.target.value)}
-                className="w-full pl-10 pr-4 py-3 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 text-gray-900 text-lg"
-                autoFocus
-              />
+          <div className="bg-white dark:bg-gray-800 rounded-lg shadow-md p-3 sm:p-4">
+            <div className="flex gap-2">
+              <div className="flex-1 relative">
+                <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4 sm:w-5 sm:h-5" />
+                <input
+                  type="text"
+                  placeholder="Buscar por nombre o código..."
+                  value={busqueda}
+                  onChange={(e) => setBusqueda(e.target.value)}
+                  className="w-full pl-9 sm:pl-10 pr-3 sm:pr-4 py-2 sm:py-3 border border-gray-300 dark:border-gray-600 rounded-md focus:outline-none focus:ring-2 focus:ring-jmr-primary dark:bg-gray-700 dark:text-gray-100 text-sm sm:text-base"
+                  autoFocus
+                />
+              </div>
+              <button
+                onClick={() => setMostrarModalProducto(true)}
+                className="bg-jmr-primary hover:bg-jmr-secondary dark:bg-jmr-accent dark:hover:bg-jmr-primary text-white px-3 sm:px-4 py-2 sm:py-3 rounded-md flex items-center gap-2 transition-colors"
+                title="Crear producto"
+              >
+                <PlusCircle className="w-4 h-4 sm:w-5 sm:h-5" />
+                <span className="hidden sm:inline text-sm">Nuevo</span>
+              </button>
             </div>
+            {busqueda && productosFiltrados.length === 0 && (
+              <p className="text-orange-600 dark:text-orange-400 text-xs sm:text-sm mt-2">
+                No se encontró el producto. Usa "Nuevo" para crearlo.
+              </p>
+            )}
           </div>
 
-          {/* Grid de productos */}
-          <div className="bg-white rounded-lg shadow-md p-4">
-            <h2 className="text-lg font-semibold text-gray-800 mb-4">Productos Disponibles</h2>
-            <div className="grid grid-cols-2 md:grid-cols-3 gap-4 max-h-[600px] overflow-y-auto">
-              {productosFiltrados.map((producto) => (
+          <div className="bg-white dark:bg-gray-800 rounded-lg shadow-md p-3 sm:p-4">
+            <div className="flex justify-between items-center mb-3 sm:mb-4">
+              <h2 className="text-base sm:text-lg font-semibold text-gray-800 dark:text-gray-100">
+                Productos ({productosFiltrados.length})
+              </h2>
+              {totalPaginas > 1 && (
+                <div className="flex gap-1">
+                  <button
+                    onClick={() => setPaginaActual(Math.max(1, paginaActual - 1))}
+                    disabled={paginaActual === 1}
+                    className="p-1 border border-gray-300 dark:border-gray-600 rounded disabled:opacity-50"
+                  >
+                    <ChevronLeft className="w-4 h-4 sm:w-5 sm:h-5" />
+                  </button>
+                  <span className="px-2 py-1 text-xs sm:text-sm">
+                    {paginaActual}/{totalPaginas}
+                  </span>
+                  <button
+                    onClick={() => setPaginaActual(Math.min(totalPaginas, paginaActual + 1))}
+                    disabled={paginaActual === totalPaginas}
+                    className="p-1 border border-gray-300 dark:border-gray-600 rounded disabled:opacity-50"
+                  >
+                    <ChevronRight className="w-4 h-4 sm:w-5 sm:h-5" />
+                  </button>
+                </div>
+              )}
+            </div>
+            <div className="grid grid-cols-2 md:grid-cols-3 gap-2 sm:gap-4 max-h-[500px] sm:max-h-[600px] overflow-y-auto">
+              {productosPaginados.map((producto) => (
                 <div
                   key={producto.id}
                   onClick={() => agregarAlCarrito(producto)}
-                  className={`border rounded-lg p-3 cursor-pointer transition-all ${
+                  className={`border dark:border-gray-700 rounded-lg p-2 sm:p-3 cursor-pointer transition-all ${
                     producto.stock === 0
-                      ? 'bg-gray-100 opacity-50 cursor-not-allowed'
-                      : 'hover:shadow-lg hover:border-blue-500'
+                      ? 'bg-gray-100 dark:bg-gray-700 opacity-50 cursor-not-allowed'
+                      : 'hover:shadow-lg hover:border-jmr-primary dark:hover:border-jmr-accent'
                   }`}
                 >
-                  <div className="relative w-full h-32 mb-2 bg-gray-100 rounded-md overflow-hidden">
+                  <div className="relative w-full h-24 sm:h-32 mb-2 bg-gray-100 dark:bg-gray-700 rounded-md overflow-hidden">
                     {producto.imagen ? (
-                      <Image
-                        src={producto.imagen}
-                        alt={producto.nombre}
-                        fill
-                        className="object-cover"
-                        sizes="200px"
-                      />
+                      <Image src={producto.imagen} alt={producto.nombre} fill className="object-cover" sizes="200px" />
                     ) : (
                       <div className="w-full h-full flex items-center justify-center">
-                        <ShoppingCart className="w-12 h-12 text-gray-400" />
+                        <ShoppingCart className="w-8 h-8 sm:w-12 sm:h-12 text-gray-400" />
                       </div>
                     )}
                   </div>
-                  <h3 className="font-semibold text-sm text-gray-900 line-clamp-2 mb-1">
+                  <h3 className="font-semibold text-xs sm:text-sm text-gray-900 dark:text-gray-100 line-clamp-2 mb-1">
                     {producto.nombre}
                   </h3>
-                  <p className="text-lg font-bold text-blue-600">${producto.precio.toFixed(2)}</p>
-                  <p className={`text-xs ${producto.stock <= producto.stockMinimo ? 'text-red-600 font-semibold' : 'text-gray-500'}`}>
+                  {producto.codigoProducto && (
+                    <p className="text-xs text-jmr-primary dark:text-jmr-accent font-medium mb-1 truncate">
+                      {producto.codigoProducto}
+                    </p>
+                  )}
+                  <p className="text-base sm:text-lg font-bold text-jmr-primary dark:text-jmr-accent">${producto.precio.toFixed(2)}</p>
+                  <p className={`text-xs ${producto.stock <= producto.stockMinimo ? 'text-red-600 font-semibold' : 'text-gray-500 dark:text-gray-400'}`}>
                     Stock: {producto.stock}
                   </p>
                 </div>
@@ -220,74 +343,68 @@ export default function VentasPage() {
           </div>
         </div>
 
-        {/* Panel derecho: Carrito */}
         <div className="space-y-4">
-          {/* Carrito de compras */}
-          <div className="bg-white rounded-lg shadow-md p-4">
-            <h2 className="text-lg font-semibold text-gray-800 mb-4 flex items-center gap-2">
-              <ShoppingCart className="w-5 h-5" />
+          <div className="bg-white dark:bg-gray-800 rounded-lg shadow-md p-3 sm:p-4 sticky top-20">
+            <h2 className="text-base sm:text-lg font-semibold text-gray-800 dark:text-gray-100 mb-3 sm:mb-4 flex items-center gap-2">
+              <ShoppingCart className="w-4 h-4 sm:w-5 sm:h-5" />
               Carrito ({carrito.length})
             </h2>
 
-            <div className="space-y-2 max-h-64 overflow-y-auto mb-4">
+            <div className="space-y-2 max-h-48 sm:max-h-64 overflow-y-auto mb-3 sm:mb-4">
               {carrito.length === 0 ? (
-                <p className="text-gray-500 text-center py-8">Carrito vacío</p>
+                <p className="text-gray-500 dark:text-gray-400 text-center py-4 sm:py-8 text-sm">Carrito vacío</p>
               ) : (
                 carrito.map((item) => (
-                  <div key={item.productoId} className="flex items-center justify-between border-b pb-2">
-                    <div className="flex-1">
-                      <p className="text-sm font-medium text-gray-900">{item.nombre}</p>
-                      <p className="text-xs text-gray-500">${item.precioUnit.toFixed(2)} c/u</p>
+                  <div key={item.productoId} className="flex items-center justify-between border-b dark:border-gray-700 pb-2 gap-2">
+                    <div className="flex-1 min-w-0">
+                      <p className="text-xs sm:text-sm font-medium text-gray-900 dark:text-gray-100 truncate">{item.nombre}</p>
+                      <p className="text-xs text-gray-500 dark:text-gray-400">${item.precioUnit.toFixed(2)}</p>
                     </div>
-                    <div className="flex items-center gap-2">
+                    <div className="flex items-center gap-1 sm:gap-2">
                       <button
                         onClick={() => actualizarCantidad(item.productoId, item.cantidad - 1)}
-                        className="bg-gray-200 hover:bg-gray-300 p-1 rounded"
+                        className="bg-gray-200 dark:bg-gray-700 hover:bg-gray-300 dark:hover:bg-gray-600 p-1 rounded"
                       >
-                        <Minus className="w-4 h-4" />
+                        <Minus className="w-3 h-3 sm:w-4 sm:h-4" />
                       </button>
-                      <span className="w-8 text-center font-semibold">{item.cantidad}</span>
+                      <span className="w-6 sm:w-8 text-center font-semibold text-xs sm:text-sm">{item.cantidad}</span>
                       <button
                         onClick={() => actualizarCantidad(item.productoId, item.cantidad + 1)}
-                        className="bg-gray-200 hover:bg-gray-300 p-1 rounded"
+                        className="bg-gray-200 dark:bg-gray-700 hover:bg-gray-300 dark:hover:bg-gray-600 p-1 rounded"
                       >
-                        <Plus className="w-4 h-4" />
+                        <Plus className="w-3 h-3 sm:w-4 sm:h-4" />
                       </button>
                       <button
                         onClick={() => eliminarDelCarrito(item.productoId)}
-                        className="text-red-600 hover:text-red-800 p-1"
+                        className="text-red-600 dark:text-red-400 hover:text-red-800 p-1"
                       >
-                        <Trash2 className="w-4 h-4" />
+                        <Trash2 className="w-3 h-3 sm:w-4 sm:h-4" />
                       </button>
                     </div>
-                    <div className="ml-2 text-right">
-                      <p className="font-semibold text-gray-900">
-                        ${(item.precioUnit * item.cantidad).toFixed(2)}
-                      </p>
-                    </div>
+                    <p className="font-semibold text-gray-900 dark:text-gray-100 text-xs sm:text-sm whitespace-nowrap">
+                      ${(item.precioUnit * item.cantidad).toFixed(2)}
+                    </p>
                   </div>
                 ))
               )}
             </div>
 
-            {/* Total */}
-            <div className="border-t pt-4 mb-4">
-              <div className="flex justify-between items-center text-2xl font-bold">
-                <span>TOTAL:</span>
-                <span className="text-green-600">${calcularTotal().toFixed(2)}</span>
+            <div className="border-t dark:border-gray-700 pt-3 sm:pt-4 mb-3 sm:mb-4">
+              <div className="flex justify-between items-center text-xl sm:text-2xl font-bold">
+                <span className="text-gray-800 dark:text-gray-100">TOTAL:</span>
+                <span className="text-jmr-primary dark:text-jmr-accent">${calcularTotal().toFixed(2)}</span>
               </div>
             </div>
 
-            {/* Método de pago */}
-            <div className="space-y-3 mb-4">
-              <label className="block text-sm font-medium text-gray-700">
-                <CreditCard className="w-4 h-4 inline mr-1" />
+            <div className="space-y-3 mb-3 sm:mb-4">
+              <label className="block text-xs sm:text-sm font-medium text-gray-700 dark:text-gray-300">
+                <CreditCard className="w-3 h-3 sm:w-4 sm:h-4 inline mr-1" />
                 Método de Pago
               </label>
               <select
                 value={metodoPago}
                 onChange={(e) => setMetodoPago(e.target.value)}
-                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 text-gray-900"
+                className="w-full px-2 sm:px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md focus:outline-none focus:ring-2 focus:ring-jmr-primary dark:bg-gray-700 dark:text-gray-100 text-sm"
               >
                 <option value="EFECTIVO">Efectivo</option>
                 <option value="TARJETA">Tarjeta</option>
@@ -295,40 +412,144 @@ export default function VentasPage() {
               </select>
             </div>
 
-            {/* Datos del cliente (opcional) */}
-            <div className="space-y-3 mb-4">
-              <label className="block text-sm font-medium text-gray-700">
-                <User className="w-4 h-4 inline mr-1" />
+            <div className="space-y-2 sm:space-y-3 mb-3 sm:mb-4">
+              <label className="block text-xs sm:text-sm font-medium text-gray-700 dark:text-gray-300">
+                <User className="w-3 h-3 sm:w-4 sm:h-4 inline mr-1" />
                 Cliente (opcional)
               </label>
               <input
                 type="text"
-                placeholder="Nombre del cliente"
+                placeholder="Nombre"
                 value={clienteNombre}
                 onChange={(e) => setClienteNombre(e.target.value)}
-                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 text-gray-900"
+                className="w-full px-2 sm:px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md focus:outline-none focus:ring-2 focus:ring-jmr-primary dark:bg-gray-700 dark:text-gray-100 text-sm"
               />
               <input
                 type="text"
                 placeholder="DNI"
                 value={clienteDni}
                 onChange={(e) => setClienteDni(e.target.value)}
-                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 text-gray-900"
+                className="w-full px-2 sm:px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md focus:outline-none focus:ring-2 focus:ring-jmr-primary dark:bg-gray-700 dark:text-gray-100 text-sm"
               />
             </div>
 
-            {/* Botón finalizar venta */}
             <button
               onClick={finalizarVenta}
               disabled={carrito.length === 0 || procesando}
-              className="w-full bg-green-600 hover:bg-green-700 text-white py-3 rounded-lg font-semibold disabled:bg-gray-400 transition-colors flex items-center justify-center gap-2"
+              className="w-full bg-jmr-primary hover:bg-jmr-secondary dark:bg-jmr-accent dark:hover:bg-jmr-primary text-white py-2 sm:py-3 rounded-lg font-semibold disabled:bg-gray-400 transition-colors flex items-center justify-center gap-2 text-sm sm:text-base"
             >
-              <DollarSign className="w-5 h-5" />
+              <DollarSign className="w-4 h-4 sm:w-5 sm:h-5" />
               {procesando ? 'Procesando...' : 'Finalizar Venta'}
             </button>
           </div>
         </div>
       </div>
+
+      {mostrarModalProducto && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white dark:bg-gray-800 rounded-lg shadow-xl max-w-md w-full max-h-[90vh] overflow-y-auto">
+            <div className="p-4 sm:p-6">
+              <h2 className="text-xl sm:text-2xl font-bold text-gray-800 dark:text-gray-100 mb-4">Crear Producto Rápido</h2>
+              
+              <form onSubmit={handleCrearProductoRapido} className="space-y-3 sm:space-y-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Nombre *</label>
+                  <input
+                    type="text"
+                    value={nuevoProducto.nombre}
+                    onChange={(e) => setNuevoProducto({ ...nuevoProducto, nombre: e.target.value })}
+                    required
+                    className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md focus:outline-none focus:ring-2 focus:ring-jmr-primary dark:bg-gray-700 dark:text-gray-100 text-sm"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Código de Producto</label>
+                  <input
+                    type="text"
+                    value={nuevoProducto.codigoProducto}
+                    onChange={(e) => setNuevoProducto({ ...nuevoProducto, codigoProducto: e.target.value })}
+                    placeholder="Ej: ABC123"
+                    className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md focus:outline-none focus:ring-2 focus:ring-jmr-primary dark:bg-gray-700 dark:text-gray-100 text-sm"
+                  />
+                </div>
+
+                <div className="grid grid-cols-2 gap-3 sm:gap-4">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Precio *</label>
+                    <input
+                      type="number"
+                      value={nuevoProducto.precio}
+                      onChange={(e) => setNuevoProducto({ ...nuevoProducto, precio: e.target.value })}
+                      required
+                      step="0.01"
+                      min="0"
+                      className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md focus:outline-none focus:ring-2 focus:ring-jmr-primary dark:bg-gray-700 dark:text-gray-100 text-sm"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Stock</label>
+                    <input
+                      type="number"
+                      value={nuevoProducto.stock}
+                      onChange={(e) => setNuevoProducto({ ...nuevoProducto, stock: e.target.value })}
+                      min="0"
+                      className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md focus:outline-none focus:ring-2 focus:ring-jmr-primary dark:bg-gray-700 dark:text-gray-100 text-sm"
+                    />
+                  </div>
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Categoría *</label>
+                  <select
+                    value={nuevoProducto.categoriaId}
+                    onChange={(e) => setNuevoProducto({ ...nuevoProducto, categoriaId: e.target.value })}
+                    required
+                    className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md focus:outline-none focus:ring-2 focus:ring-jmr-primary dark:bg-gray-700 dark:text-gray-100 text-sm"
+                  >
+                    <option value="">Seleccionar...</option>
+                    {categorias.map((cat) => (
+                      <option key={cat.id} value={cat.id}>{cat.nombre}</option>
+                    ))}
+                  </select>
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Proveedor *</label>
+                  <select
+                    value={nuevoProducto.proveedorId}
+                    onChange={(e) => setNuevoProducto({ ...nuevoProducto, proveedorId: e.target.value })}
+                    required
+                    className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md focus:outline-none focus:ring-2 focus:ring-jmr-primary dark:bg-gray-700 dark:text-gray-100 text-sm"
+                  >
+                    <option value="">Seleccionar...</option>
+                    {proveedores.map((prov) => (
+                      <option key={prov.id} value={prov.id}>{prov.nombre}</option>
+                    ))}
+                  </select>
+                </div>
+
+                <div className="flex gap-3 sm:gap-4 pt-4">
+                  <button
+                    type="submit"
+                    className="flex-1 bg-jmr-primary hover:bg-jmr-secondary dark:bg-jmr-accent dark:hover:bg-jmr-primary text-white py-2 px-4 rounded-md transition-colors text-sm"
+                  >
+                    Crear y Agregar
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setMostrarModalProducto(false)}
+                    className="flex-1 bg-gray-300 dark:bg-gray-600 hover:bg-gray-400 dark:hover:bg-gray-500 text-gray-800 dark:text-gray-100 py-2 px-4 rounded-md transition-colors text-sm"
+                  >
+                    Cancelar
+                  </button>
+                </div>
+              </form>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

@@ -247,7 +247,7 @@ export default function ProductosPage() {
   if (loading) {
     return (
       <div className="flex justify-center items-center h-64">
-        <div className="text-xl text-gray-600">Cargando productos...</div>
+        <div className="text-xl text-gray-600 dark:text-gray-400">Cargando productos...</div>
       </div>
     );
   }
@@ -256,11 +256,11 @@ export default function ProductosPage() {
     <div className="space-y-6">
       <div className="flex justify-between items-center">
         <div>
-          <h1 className="text-3xl font-bold text-gray-800 flex items-center gap-2">
+          <h1 className="text-3xl font-bold text-gray-800 dark:text-gray-100 flex items-center gap-2">
             <Package className="w-8 h-8" />
             Productos
           </h1>
-          <p className="text-gray-600 mt-1">
+          <p className="text-gray-600 dark:text-gray-400 mt-1">
             Total: {productos.length} productos {productosFiltrados.length !== productos.length && `(${productosFiltrados.length} filtrados)`}
           </p>
         </div>
@@ -268,7 +268,7 @@ export default function ProductosPage() {
           <button
             onClick={() => setModoSeleccion(!modoSeleccion)}
             className={`px-4 py-2 rounded-lg flex items-center gap-2 transition-colors ${
-              modoSeleccion ? 'bg-purple-600 text-white' : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
+              modoSeleccion ? 'bg-purple-600 text-white' : 'bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-200 hover:bg-gray-300 dark:hover:bg-gray-600'
             }`}
           >
             <CheckSquare className="w-5 h-5" />
@@ -285,14 +285,14 @@ export default function ProductosPage() {
       </div>
 
       {error && (
-        <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded">
+        <div className="bg-red-100 dark:bg-red-900/30 border border-red-400 dark:border-red-700 text-red-700 dark:text-red-400 px-4 py-3 rounded">
           {error}
         </div>
       )}
 
       {modoSeleccion && seleccionados.length > 0 && (
-        <div className="bg-purple-50 border border-purple-200 rounded-lg p-4 flex items-center justify-between">
-          <span className="font-medium text-purple-900">
+        <div className="bg-purple-50 dark:bg-purple-900/20 border border-purple-200 dark:border-purple-700 rounded-lg p-4 flex items-center justify-between">
+          <span className="font-medium text-purple-900 dark:text-purple-300">
             {seleccionados.length} producto(s) seleccionado(s)
           </span>
           <div className="flex gap-2">
@@ -314,7 +314,7 @@ export default function ProductosPage() {
         </div>
       )}
 
-      <div className="bg-white rounded-lg shadow-md p-4 space-y-4">
+      <div className="bg-white dark:bg-gray-800 rounded-lg shadow-md p-4 space-y-4">
         <div className="flex gap-4">
           <div className="flex-1 relative">
             <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-5 h-5" />
@@ -323,12 +323,12 @@ export default function ProductosPage() {
               placeholder="Buscar por nombre, descripción, código de producto o código de barras..."
               value={busqueda}
               onChange={(e) => setBusqueda(e.target.value)}
-              className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 text-gray-900"
+              className="w-full pl-10 pr-4 py-2 border border-gray-300 dark:border-gray-600 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 text-gray-900 dark:text-gray-100 dark:bg-gray-700"
             />
           </div>
           <button
             onClick={() => setMostrarFiltros(!mostrarFiltros)}
-            className="bg-gray-100 hover:bg-gray-200 px-4 py-2 rounded-md flex items-center gap-2 transition-colors"
+            className="bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 px-4 py-2 rounded-md flex items-center gap-2 transition-colors"
           >
             <Filter className="w-5 h-5" />
             Filtros
@@ -339,14 +339,14 @@ export default function ProductosPage() {
         </div>
 
         {mostrarFiltros && (
-          <div className="border-t pt-4 space-y-4">
+          <div className="border-t dark:border-gray-700 pt-4 space-y-4">
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Categoría</label>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Categoría</label>
                 <select
                   value={categoriaFiltro}
                   onChange={(e) => setCategoriaFiltro(e.target.value)}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 text-gray-900"
+                  className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 text-gray-900 dark:text-gray-100 dark:bg-gray-700"
                 >
                   <option value="">Todas</option>
                   {categorias.map((cat) => (
@@ -356,11 +356,11 @@ export default function ProductosPage() {
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Ordenar por</label>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Ordenar por</label>
                 <select
                   value={ordenarPor}
                   onChange={(e) => setOrdenarPor(e.target.value)}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 text-gray-900"
+                  className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 text-gray-900 dark:text-gray-100 dark:bg-gray-700"
                 >
                   <option value="nombre">Nombre</option>
                   <option value="precio">Precio</option>
@@ -369,11 +369,11 @@ export default function ProductosPage() {
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Orden</label>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Orden</label>
                 <select
                   value={ordenDireccion}
                   onChange={(e) => setOrdenDireccion(e.target.value)}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 text-gray-900"
+                  className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 text-gray-900 dark:text-gray-100 dark:bg-gray-700"
                 >
                   <option value="asc">Ascendente</option>
                   <option value="desc">Descendente</option>
@@ -382,7 +382,7 @@ export default function ProductosPage() {
             </div>
 
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
                 <DollarSign className="w-4 h-4 inline" /> Rango de Precios
               </label>
               <div className="grid grid-cols-2 gap-4">
@@ -391,14 +391,14 @@ export default function ProductosPage() {
                   placeholder="Mínimo"
                   value={precioMin}
                   onChange={(e) => setPrecioMin(e.target.value)}
-                  className="px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 text-gray-900"
+                  className="px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 text-gray-900 dark:text-gray-100 dark:bg-gray-700"
                 />
                 <input
                   type="number"
                   placeholder="Máximo"
                   value={precioMax}
                   onChange={(e) => setPrecioMax(e.target.value)}
-                  className="px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 text-gray-900"
+                  className="px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 text-gray-900 dark:text-gray-100 dark:bg-gray-700"
                 />
               </div>
             </div>
@@ -411,7 +411,7 @@ export default function ProductosPage() {
                 onChange={(e) => setSoloStockBajo(e.target.checked)}
                 className="w-4 h-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
               />
-              <label htmlFor="stock-bajo" className="ml-2 text-sm font-medium text-gray-700 flex items-center gap-1">
+              <label htmlFor="stock-bajo" className="ml-2 text-sm font-medium text-gray-700 dark:text-gray-300 flex items-center gap-1">
                 <AlertTriangle className="w-4 h-4 text-red-600" />
                 Solo stock bajo
               </label>
@@ -420,7 +420,7 @@ export default function ProductosPage() {
             {hayFiltrosActivos() && (
               <button
                 onClick={limpiarFiltros}
-                className="w-full bg-gray-200 hover:bg-gray-300 px-4 py-2 rounded-md flex items-center justify-center gap-2 transition-colors"
+                className="w-full bg-gray-200 dark:bg-gray-700 hover:bg-gray-300 dark:hover:bg-gray-600 px-4 py-2 rounded-md flex items-center justify-center gap-2 transition-colors"
               >
                 <X className="w-4 h-4" />
                 Limpiar filtros
@@ -429,22 +429,22 @@ export default function ProductosPage() {
           </div>
         )}
 
-        <div className="text-sm text-gray-600">
+        <div className="text-sm text-gray-600 dark:text-gray-400">
           Mostrando {productosPaginados.length} de {productosFiltrados.length}
         </div>
       </div>
 
       {productosFiltrados.length === 0 ? (
-        <div className="bg-white p-8 rounded-lg shadow-md text-center">
+        <div className="bg-white dark:bg-gray-800 p-8 rounded-lg shadow-md text-center">
           <Package className="w-16 h-16 text-gray-400 mx-auto mb-4" />
-          <p className="text-gray-600 text-lg">No se encontraron productos</p>
+          <p className="text-gray-600 dark:text-gray-400 text-lg">No se encontraron productos</p>
         </div>
       ) : (
         <>
-          <div className="bg-white rounded-lg shadow-md overflow-hidden">
+          <div className="bg-white dark:bg-gray-800 rounded-lg shadow-md overflow-hidden">
             <div className="overflow-x-auto">
-              <table className="min-w-full divide-y divide-gray-200">
-                <thead className="bg-gray-50">
+              <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
+                <thead className="bg-gray-50 dark:bg-gray-900">
                   <tr>
                     {modoSeleccion && (
                       <th className="px-6 py-3 text-left">
@@ -456,18 +456,18 @@ export default function ProductosPage() {
                         />
                       </th>
                     )}
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Imagen</th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Producto</th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Categoría</th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Proveedor</th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Precio</th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Stock</th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Acciones</th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Imagen</th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Producto</th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Categoría</th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Proveedor</th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Precio</th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Stock</th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Acciones</th>
                   </tr>
                 </thead>
-                <tbody className="bg-white divide-y divide-gray-200">
+                <tbody className="bg-white dark:bg-gray-800 divide-y divide-gray-200 dark:divide-gray-700">
                   {productosPaginados.map((producto) => (
-                    <tr key={producto.id} className="hover:bg-gray-50">
+                    <tr key={producto.id} className="hover:bg-gray-50 dark:hover:bg-gray-700/50">
                       {modoSeleccion && (
                         <td className="px-6 py-4">
                           <input
@@ -479,7 +479,7 @@ export default function ProductosPage() {
                         </td>
                       )}
                       <td className="px-6 py-4 whitespace-nowrap">
-                        <div className="relative w-16 h-16 rounded-lg overflow-hidden bg-gray-100">
+                        <div className="relative w-16 h-16 rounded-lg overflow-hidden bg-gray-100 dark:bg-gray-700">
                           {producto.imagen ? (
                             <Image src={producto.imagen} alt={producto.nombre} fill className="object-cover" sizes="64px" />
                           ) : (
@@ -490,54 +490,54 @@ export default function ProductosPage() {
                         </div>
                       </td>
                       <td className="px-6 py-4">
-                        <div className="text-sm font-medium text-gray-900">{producto.nombre}</div>
+                        <div className="text-sm font-medium text-gray-900 dark:text-gray-100">{producto.nombre}</div>
                         {producto.descripcion && (
-                          <div className="text-sm text-gray-500 line-clamp-1">{producto.descripcion}</div>
+                          <div className="text-sm text-gray-500 dark:text-gray-400 line-clamp-1">{producto.descripcion}</div>
                         )}
                         {producto.codigoProducto && (
-                          <div className="flex items-center gap-1 text-xs text-blue-600 mt-1 font-medium">
+                          <div className="flex items-center gap-1 text-xs text-blue-600 dark:text-blue-400 mt-1 font-medium">
                             <Package className="w-3 h-3" />
                             {producto.codigoProducto}
                           </div>
                         )}
                         {producto.codigoBarras && (
-                          <div className="flex items-center gap-1 text-xs text-gray-400 mt-1">
+                          <div className="flex items-center gap-1 text-xs text-gray-400 dark:text-gray-500 mt-1">
                             <Barcode className="w-3 h-3" />
                             {producto.codigoBarras}
                           </div>
                         )}
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap">
-                        <span className="px-2 py-1 inline-flex text-xs leading-5 font-semibold rounded-full bg-blue-100 text-blue-800">
+                        <span className="px-2 py-1 inline-flex text-xs leading-5 font-semibold rounded-full bg-blue-100 dark:bg-blue-900/30 text-blue-800 dark:text-blue-300">
                           {producto.categoria.nombre}
                         </span>
                       </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400">
                         {producto.proveedor.nombre}
                       </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 font-semibold">
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-gray-100 font-semibold">
                         ${producto.precio.toFixed(2)}
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap">
                         <div className="flex items-center gap-2">
                           {producto.stock <= producto.stockMinimo && (
-                            <AlertTriangle className="w-4 h-4 text-red-600" />
+                            <AlertTriangle className="w-4 h-4 text-red-600 dark:text-red-400" />
                           )}
-                          <span className={`font-medium ${producto.stock <= producto.stockMinimo ? 'text-red-600' : 'text-gray-900'}`}>
+                          <span className={`font-medium ${producto.stock <= producto.stockMinimo ? 'text-red-600 dark:text-red-400' : 'text-gray-900 dark:text-gray-100'}`}>
                             {producto.stock}
                           </span>
-                          <span className="text-xs text-gray-500">(mín: {producto.stockMinimo})</span>
+                          <span className="text-xs text-gray-500 dark:text-gray-400">(mín: {producto.stockMinimo})</span>
                         </div>
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
                         <div className="flex gap-2">
-                          <Link href={`/productos/editar/${producto.id}`} className="text-blue-600 hover:text-blue-900" title="Editar">
+                          <Link href={`/productos/editar/${producto.id}`} className="text-blue-600 dark:text-blue-400 hover:text-blue-900 dark:hover:text-blue-300" title="Editar">
                             <Edit className="w-5 h-5" />
                           </Link>
-                          <Link href={`/productos/precios/${producto.id}`} className="text-green-600 hover:text-green-900" title="Precios">
+                          <Link href={`/productos/precios/${producto.id}`} className="text-green-600 dark:text-green-400 hover:text-green-900 dark:hover:text-green-300" title="Precios">
                             <History className="w-5 h-5" />
                           </Link>
-                          <button onClick={() => handleDelete(producto.id)} className="text-red-600 hover:text-red-900" title="Eliminar">
+                          <button onClick={() => handleDelete(producto.id)} className="text-red-600 dark:text-red-400 hover:text-red-900 dark:hover:text-red-300" title="Eliminar">
                             <Trash2 className="w-5 h-5" />
                           </button>
                         </div>
@@ -550,15 +550,15 @@ export default function ProductosPage() {
           </div>
 
           {totalPaginas > 1 && (
-            <div className="flex items-center justify-between bg-white px-4 py-3 rounded-lg shadow-md">
-              <div className="text-sm text-gray-700">
+            <div className="flex items-center justify-between bg-white dark:bg-gray-800 px-4 py-3 rounded-lg shadow-md">
+              <div className="text-sm text-gray-700 dark:text-gray-300">
                 Página {paginaActual} de {totalPaginas}
               </div>
               <div className="flex gap-2">
                 <button
                   onClick={() => setPaginaActual(Math.max(1, paginaActual - 1))}
                   disabled={paginaActual === 1}
-                  className="px-3 py-1 border border-gray-300 rounded-md disabled:opacity-50 disabled:cursor-not-allowed hover:bg-gray-50"
+                  className="px-3 py-1 border border-gray-300 dark:border-gray-600 rounded-md disabled:opacity-50 disabled:cursor-not-allowed hover:bg-gray-50 dark:hover:bg-gray-700"
                 >
                   <ChevronLeft className="w-5 h-5" />
                 </button>
@@ -570,7 +570,7 @@ export default function ProductosPage() {
                       {idx > 0 && arr[idx - 1] !== num - 1 && <span className="px-2 text-gray-400">...</span>}
                       <button
                         onClick={() => setPaginaActual(num)}
-                        className={`px-3 py-1 border rounded-md ${paginaActual === num ? 'bg-blue-600 text-white border-blue-600' : 'border-gray-300 hover:bg-gray-50'}`}
+                        className={`px-3 py-1 border rounded-md ${paginaActual === num ? 'bg-blue-600 text-white border-blue-600' : 'border-gray-300 dark:border-gray-600 hover:bg-gray-50 dark:hover:bg-gray-700'}`}
                       >
                         {num}
                       </button>
@@ -580,7 +580,7 @@ export default function ProductosPage() {
                 <button
                   onClick={() => setPaginaActual(Math.min(totalPaginas, paginaActual + 1))}
                   disabled={paginaActual === totalPaginas}
-                  className="px-3 py-1 border border-gray-300 rounded-md disabled:opacity-50 disabled:cursor-not-allowed hover:bg-gray-50"
+                  className="px-3 py-1 border border-gray-300 dark:border-gray-600 rounded-md disabled:opacity-50 disabled:cursor-not-allowed hover:bg-gray-50 dark:hover:bg-gray-700"
                 >
                   <ChevronRight className="w-5 h-5" />
                 </button>

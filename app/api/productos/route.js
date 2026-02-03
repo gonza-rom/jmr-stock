@@ -24,7 +24,7 @@ export async function GET() {
 export async function POST(request) {
   try {
     const body = await request.json();
-    const { nombre, descripcion, precio, stock, stockMinimo, imagen, categoriaId, proveedorId, codigoBarras } = body;
+    const { nombre, descripcion, precio, stock, stockMinimo, imagen, categoriaId, proveedorId, codigoBarras, codigoProducto } = body;
 
     if (!nombre || precio === undefined || precio === '' || !categoriaId || !proveedorId) {
       return NextResponse.json(
@@ -44,6 +44,7 @@ export async function POST(request) {
         categoriaId: parseInt(categoriaId),
         proveedorId: parseInt(proveedorId),
         codigoBarras: codigoBarras && codigoBarras.trim() !== '' ? codigoBarras.trim() : null,
+        codigoProducto: codigoProducto && codigoProducto.trim() !== '' ? codigoProducto.trim() : null,
       },
       include: {
         categoria: true,
@@ -54,9 +55,21 @@ export async function POST(request) {
     return NextResponse.json(producto, { status: 201 });
   } catch (error) {
     if (error.code === 'P2002') {
-      // Unique constraint violation - puede ser codigoBarras duplicado
+      // Unique constraint violation
+      const field = error.meta?.target?.[0];
+      if (field === 'codigoBarras') {
+        return NextResponse.json(
+          { error: 'El código de barras ya existe en otro producto' },
+          { status: 409 }
+        );
+      } else if (field === 'codigoProducto') {
+        return NextResponse.json(
+          { error: 'El código de producto ya existe en otro producto' },
+          { status: 409 }
+        );
+      }
       return NextResponse.json(
-        { error: 'El código de barras ya existe en otro producto' },
+        { error: 'Ya existe un producto con ese código' },
         { status: 409 }
       );
     }

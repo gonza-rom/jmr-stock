@@ -71,6 +71,7 @@ export async function PUT(request, context) {
     if (body.categoriaId !== undefined) updateData.categoriaId = parseInt(body.categoriaId);
     if (body.proveedorId !== undefined) updateData.proveedorId = parseInt(body.proveedorId);
     if (body.codigoBarras !== undefined) updateData.codigoBarras = body.codigoBarras && body.codigoBarras.trim() !== '' ? body.codigoBarras.trim() : null;
+    if (body.codigoProducto !== undefined) updateData.codigoProducto = body.codigoProducto && body.codigoProducto.trim() !== '' ? body.codigoProducto.trim() : null;
 
     // Detectar si el precio cambió
     const precioNuevo = body.precio !== undefined ? parseFloat(body.precio) : null;
@@ -110,7 +111,13 @@ export async function PUT(request, context) {
       return NextResponse.json({ error: 'Producto no encontrado' }, { status: 404 });
     }
     if (error.code === 'P2002') {
-      return NextResponse.json({ error: 'El código de barras ya existe en otro producto' }, { status: 409 });
+      const field = error.meta?.target?.[0];
+      if (field === 'codigoBarras') {
+        return NextResponse.json({ error: 'El código de barras ya existe en otro producto' }, { status: 409 });
+      } else if (field === 'codigoProducto') {
+        return NextResponse.json({ error: 'El código de producto ya existe en otro producto' }, { status: 409 });
+      }
+      return NextResponse.json({ error: 'Ya existe un producto con ese código' }, { status: 409 });
     }
     console.error('Error al actualizar producto:', error);
     return NextResponse.json({ error: 'Error al actualizar producto' }, { status: 500 });

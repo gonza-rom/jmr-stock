@@ -1,6 +1,6 @@
 /** @type {import('tailwindcss').Config} */
 module.exports = {
-  darkMode: 'class', // Habilitar modo oscuro con clase
+  darkMode: 'class',
   content: [
     "./pages/**/*.{js,jsx}",
     "./components/**/*.{js,jsx}",
@@ -9,18 +9,14 @@ module.exports = {
   theme: {
     extend: {
       colors: {
-        // Colores de Marroquinería JMR
         jmr: {
-          primary: '#16a34a',    // Verde principal
-          secondary: '#15803d',  // Verde oscuro
-          accent: '#22c55e',     // Verde brillante
-          dark: '#14532d',       // Verde muy oscuro
-          light: '#dcfce7',      // Verde claro
+          primary: '#16a34a',
+          secondary: '#15803d',
+          accent: '#22c55e',
+          dark: '#14532d',
+          light: '#dcfce7',
         },
-        background: "var(--background)",
-        foreground: "var(--foreground)",
       },
     },
   },
-  plugins: [],
 }

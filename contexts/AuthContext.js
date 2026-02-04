@@ -23,24 +23,16 @@ export function AuthProvider({ children }) {
     }
 
     try {
-      const response = await fetch('/api/auth/me');
+      const response = await fetch('/api/auth');
       if (response.ok) {
         const userData = await response.json();
         setUser(userData);
       } else {
         setUser(null);
-        // Solo redirigir si no estamos ya en login
-        if (pathname !== '/login') {
-          router.push('/login');
-        }
       }
     } catch (error) {
       console.error('Error checking auth:', error);
       setUser(null);
-      // Solo redirigir si no estamos ya en login
-      if (pathname !== '/login') {
-        router.push('/login');
-      }
     } finally {
       setLoading(false);
     }
@@ -61,7 +53,10 @@ export function AuthProvider({ children }) {
 
       const userData = await response.json();
       setUser(userData);
-      router.push('/');
+      
+      // Usar window.location para forzar una recarga completa de la página
+      window.location.href = '/';
+      
       return { success: true };
     } catch (error) {
       return { success: false, error: error.message };

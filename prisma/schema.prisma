@@ -8,6 +8,22 @@ datasource db {
   directUrl = env("DIRECT_URL")
 }
 
+model Usuario {
+  id        Int      @id @default(autoincrement())
+  nombre    String
+  email     String   @unique
+  password  String
+  rol       Rol      @default(EMPLEADO)
+  activo    Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+enum Rol {
+  EMPLEADO
+  ADMINISTRADOR
+}
+
 model Categoria {
   id          Int        @id @default(autoincrement())
   nombre      String     @unique
@@ -32,7 +48,7 @@ model Producto {
   id              Int                @id @default(autoincrement())
   nombre          String
   descripcion     String?
-  codigoProducto  String?            @unique  // NUEVO CAMPO
+  codigoProducto  String?            @unique
   precio          Float
   stock           Int                @default(0)
   stockMinimo     Int                @default(5)

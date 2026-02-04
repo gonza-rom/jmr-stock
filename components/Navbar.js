@@ -4,10 +4,12 @@ import Link from 'next/link';
 import Image from 'next/image';
 import { usePathname } from 'next/navigation';
 import { useState, useEffect } from 'react';
-import { Package, ShoppingCart, Users, FolderTree, TrendingUp, DollarSign, BarChart3, Moon, Sun, Menu, X } from 'lucide-react';
+import { Package, ShoppingCart, Users, FolderTree, TrendingUp, DollarSign, BarChart3, Moon, Sun, Menu, X, LogOut, UserCircle } from 'lucide-react';
+import { useAuth } from '@/contexts/AuthContext';
 
 export default function Navbar() {
   const pathname = usePathname();
+  const { user, logout, isAdmin, loading } = useAuth();
   const [darkMode, setDarkMode] = useState(false);
   const [menuAbierto, setMenuAbierto] = useState(false);
 
@@ -32,15 +34,39 @@ export default function Navbar() {
     }
   };
 
-  const links = [
-    { href: '/', label: 'Dashboard', icon: TrendingUp },
-    { href: '/ventas', label: 'Ventas', icon: DollarSign },
-    { href: '/productos', label: 'Productos', icon: Package },
-    { href: '/categorias', label: 'Categorías', icon: FolderTree },
-    { href: '/proveedores', label: 'Proveedores', icon: Users },
-    { href: '/movimientos', label: 'Movimientos', icon: ShoppingCart },
-    { href: '/estadisticas', label: 'Estadísticas', icon: BarChart3 },
-  ];
+  // Links basados en rol
+  const getLinks = () => {
+    const baseLinks = [
+      { href: '/', label: 'Dashboard', icon: TrendingUp },
+      { href: '/ventas', label: 'Ventas', icon: DollarSign },
+      { href: '/productos', label: 'Productos', icon: Package },
+    ];
+
+    // Si es admin, mostrar todo
+    if (isAdmin()) {
+      return [
+        ...baseLinks,
+        { href: '/categorias', label: 'Categorías', icon: FolderTree },
+        { href: '/proveedores', label: 'Proveedores', icon: Users },
+        { href: '/movimientos', label: 'Movimientos', icon: ShoppingCart },
+        { href: '/estadisticas', label: 'Estadísticas', icon: BarChart3 },
+        { href: '/usuarios', label: 'Usuarios', icon: UserCircle },
+      ];
+    }
+
+    // Empleados solo ven Dashboard, Ventas y Productos
+    return baseLinks;
+  };
+
+  const links = getLinks();
+
+  if (loading) {
+    return null; // O un skeleton loader
+  }
+
+  if (!user) {
+    return null; // No mostrar navbar en login
+  }
 
   return (
     <nav className="bg-jmr-primary dark:bg-gray-900 text-white shadow-lg sticky top-0 z-50">
@@ -88,6 +114,26 @@ export default function Navbar() {
 
           {/* Botones de la derecha */}
           <div className="flex items-center space-x-2">
+            {/* Usuario info */}
+            <div className="hidden md:flex items-center gap-2 bg-jmr-secondary/30 dark:bg-gray-800 px-3 py-1.5 rounded-md">
+              <UserCircle className="w-5 h-5" />
+              <div className="text-sm">
+                <p className="font-semibold">{user?.nombre}</p>
+                <p className="text-xs text-gray-300 dark:text-gray-400">
+                  {user?.rol === 'ADMINISTRADOR' ? 'Administrador' : 'Empleado'}
+                </p>
+              </div>
+            </div>
+
+            {/* Botón de logout */}
+            <button
+              onClick={logout}
+              className="p-2 rounded-md hover:bg-jmr-secondary dark:hover:bg-gray-800 transition-colors"
+              title="Cerrar sesión"
+            >
+              <LogOut className="w-5 h-5" />
+            </button>
+
             {/* Toggle modo oscuro */}
             <button
               onClick={toggleDarkMode}
@@ -110,6 +156,17 @@ export default function Navbar() {
         {/* Mobile Menu */}
         {menuAbierto && (
           <div className="lg:hidden pb-4 space-y-1">
+            {/* Info de usuario en móvil */}
+            <div className="flex items-center gap-2 bg-jmr-secondary/30 dark:bg-gray-800 px-4 py-3 rounded-md mb-2">
+              <UserCircle className="w-6 h-6" />
+              <div className="text-sm">
+                <p className="font-semibold">{user?.nombre}</p>
+                <p className="text-xs text-gray-300 dark:text-gray-400">
+                  {user?.rol === 'ADMINISTRADOR' ? 'Administrador' : 'Empleado'}
+                </p>
+              </div>
+            </div>
+
             {links.map((link) => {
               const Icon = link.icon;
               const isActive = pathname === link.href;

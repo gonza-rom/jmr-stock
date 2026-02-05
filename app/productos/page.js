@@ -16,7 +16,15 @@ export default function ProductosPage() {
   const [categorias, setCategorias] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
-  
+  const [mostrarModalMasivo, setMostrarModalMasivo] = useState(false);
+  const [accionMasiva, setAccionMasiva] = useState('CAMBIAR_CATEGORIA');
+  const [datosMasivos, setDatosMasivos] = useState({
+    categoriaId: '',
+    proveedorId: '',
+    tipoStock: 'SUMAR',
+    cantidadStock: '',
+    motivoStock: ''
+  });
   const [busqueda, setBusqueda] = useState('');
   const [categoriaFiltro, setCategoriaFiltro] = useState('');
   const [ordenarPor, setOrdenarPor] = useState('nombre');
@@ -31,6 +39,27 @@ export default function ProductosPage() {
 
   const [seleccionados, setSeleccionados] = useState([]);
   const [modoSeleccion, setModoSeleccion] = useState(false);
+
+  const [proveedores, setProveedores] = useState([]);
+
+useEffect(() => {
+  const fetchProveedores = async () => {
+    try {
+      const response = await fetch('/api/proveedores');
+      const data = await response.json();
+      setProveedores(data);
+    } catch (err) {
+      console.error('Error al cargar proveedores');
+    }
+  };
+
+  const fetchProductos = async () => {
+    // tu código de productos
+  };
+
+  fetchProveedores();
+  fetchProductos();
+}, []);
 
   useEffect(() => {
     fetchProductos();
@@ -252,6 +281,68 @@ export default function ProductosPage() {
     );
   }
 
+    const handleActualizacionMasiva = async () => {
+    if (seleccionados.length === 0) {
+      alert('No hay productos seleccionados');
+      return;
+    }
+
+    let datos = {};
+    
+    switch (accionMasiva) {
+      case 'CAMBIAR_CATEGORIA':
+        if (!datosMasivos.categoriaId) {
+          alert('Selecciona una categoría');
+          return;
+        }
+        datos = { categoriaId: datosMasivos.categoriaId };
+        break;
+      
+      case 'CAMBIAR_PROVEEDOR':
+        if (!datosMasivos.proveedorId) {
+          alert('Selecciona un proveedor');
+          return;
+        }
+        datos = { proveedorId: datosMasivos.proveedorId };
+        break;
+      
+      case 'AJUSTAR_STOCK':
+        if (!datosMasivos.cantidadStock) {
+          alert('Ingresa una cantidad');
+          return;
+        }
+        datos = {
+          tipo: datosMasivos.tipoStock,
+          cantidad: datosMasivos.cantidadStock,
+          motivo: datosMasivos.motivoStock
+        };
+        break;
+    }
+
+    try {
+      const response = await fetch('/api/productos/masivo', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          productosIds: seleccionados,
+          accion: accionMasiva,
+          datos
+        })
+      });
+
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.error);
+      }
+
+      alert(`${seleccionados.length} productos actualizados correctamente`);
+      setMostrarModalMasivo(false);
+      setSeleccionados([]);
+      fetchProductos();
+    } catch (err) {
+      alert(err.message || 'Error al actualizar productos');
+    }
+  };
   return (
     <div className="space-y-6">
       <div className="flex justify-between items-center">
@@ -309,6 +400,13 @@ export default function ProductosPage() {
             >
               <Trash2 className="w-4 h-4" />
               Eliminar
+            </button>
+            <button
+              onClick={() => setMostrarModalMasivo(true)}
+              className="bg-purple-600 hover:bg-purple-700 text-white px-4 py-2 rounded-md flex items-center gap-2 transition-colors"
+            >
+              <Edit className="w-4 h-4" />
+              Editar Masivo
             </button>
           </div>
         </div>
@@ -587,6 +685,139 @@ export default function ProductosPage() {
               </div>
             </div>
           )}
+          {mostrarModalMasivo && (
+          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+            <div className="bg-white dark:bg-gray-800 rounded-lg shadow-xl max-w-md w-full max-h-[90vh] overflow-y-auto">
+              <div className="p-6">
+                <h2 className="text-xl font-bold text-gray-800 dark:text-gray-100 mb-4">
+                  Edición Masiva ({seleccionados.length} productos)
+                </h2>
+                
+                <div className="space-y-4">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                      Acción
+                    </label>
+                    <select
+                      value={accionMasiva}
+                      onChange={(e) => setAccionMasiva(e.target.value)}
+                      className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 text-gray-900 dark:text-gray-100 dark:bg-gray-700"
+                    >
+                      <option value="CAMBIAR_CATEGORIA">Cambiar Categoría</option>
+                      <option value="CAMBIAR_PROVEEDOR">Cambiar Proveedor</option>
+                      <option value="AJUSTAR_STOCK">Ajustar Stock</option>
+                    </select>
+                  </div>
+
+                  {accionMasiva === 'CAMBIAR_CATEGORIA' && (
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                        Nueva Categoría
+                      </label>
+                      <select
+                        value={datosMasivos.categoriaId}
+                        onChange={(e) => setDatosMasivos({ ...datosMasivos, categoriaId: e.target.value })}
+                        className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 text-gray-900 dark:text-gray-100 dark:bg-gray-700"
+                      >
+                        <option value="">Seleccionar...</option>
+                        {categorias.map((cat) => (
+                          <option key={cat.id} value={cat.id}>{cat.nombre}</option>
+                        ))}
+                      </select>
+                    </div>
+                  )}
+
+                  {accionMasiva === 'CAMBIAR_PROVEEDOR' && (
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                        Nuevo Proveedor
+                      </label>
+                      <select
+                        value={datosMasivos.proveedorId}
+                        onChange={(e) => setDatosMasivos({ ...datosMasivos, proveedorId: e.target.value })}
+                        className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 text-gray-900 dark:text-gray-100 dark:bg-gray-700"
+                      >
+                        <option value="">Seleccionar...</option>
+                        {proveedores.map((prov) => (
+                          <option key={prov.id} value={prov.id}>{prov.nombre}</option>
+                        ))}
+                      </select>
+                    </div>
+                  )}
+
+                  {accionMasiva === 'AJUSTAR_STOCK' && (
+                    <>
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                          Tipo de Ajuste
+                        </label>
+                        <select
+                          value={datosMasivos.tipoStock}
+                          onChange={(e) => setDatosMasivos({ ...datosMasivos, tipoStock: e.target.value })}
+                          className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 text-gray-900 dark:text-gray-100 dark:bg-gray-700"
+                        >
+                          <option value="SUMAR">➕ Sumar al stock</option>
+                          <option value="RESTAR">➖ Restar del stock</option>
+                          <option value="ESTABLECER">📝 Establecer stock</option>
+                        </select>
+                      </div>
+                      
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                          Cantidad
+                        </label>
+                        <input
+                          type="number"
+                          value={datosMasivos.cantidadStock}
+                          onChange={(e) => setDatosMasivos({ ...datosMasivos, cantidadStock: e.target.value })}
+                          min="0"
+                          className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 text-gray-900 dark:text-gray-100 dark:bg-gray-700"
+                        />
+                      </div>
+
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                          Motivo (opcional)
+                        </label>
+                        <input
+                          type="text"
+                          value={datosMasivos.motivoStock}
+                          onChange={(e) => setDatosMasivos({ ...datosMasivos, motivoStock: e.target.value })}
+                          placeholder="Ej: Inventario anual"
+                          className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 text-gray-900 dark:text-gray-100 dark:bg-gray-700"
+                        />
+                      </div>
+                    </>
+                  )}
+
+                  <div className="flex gap-3 pt-4">
+                    <button
+                      onClick={handleActualizacionMasiva}
+                      className="flex-1 bg-blue-600 hover:bg-blue-700 text-white py-2 px-4 rounded-md transition-colors"
+                    >
+                      Aplicar Cambios
+                    </button>
+                    <button
+                      onClick={() => {
+                        setMostrarModalMasivo(false);
+                        setDatosMasivos({
+                          categoriaId: '',
+                          proveedorId: '',
+                          tipoStock: 'SUMAR',
+                          cantidadStock: '',
+                          motivoStock: ''
+                        });
+                      }}
+                      className="flex-1 bg-gray-300 dark:bg-gray-600 hover:bg-gray-400 dark:hover:bg-gray-500 text-gray-800 dark:text-gray-100 py-2 px-4 rounded-md transition-colors"
+                    >
+                      Cancelar
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
         </>
       )}
     </div>

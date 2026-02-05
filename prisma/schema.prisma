@@ -9,14 +9,16 @@ datasource db {
 }
 
 model Usuario {
-  id        Int      @id @default(autoincrement())
-  nombre    String
-  email     String   @unique
-  password  String
-  rol       Rol      @default(EMPLEADO)
-  activo    Boolean  @default(true)
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  id          Int          @id @default(autoincrement())
+  nombre      String
+  email       String       @unique
+  password    String
+  rol         Rol          @default(EMPLEADO)
+  activo      Boolean      @default(true)
+  createdAt   DateTime     @default(now())
+  updatedAt   DateTime     @updatedAt
+  movimientos Movimiento[]
+  ventas      Venta[]
 }
 
 enum Rol {
@@ -71,8 +73,10 @@ model Movimiento {
   tipo        String
   cantidad    Int
   motivo      String?
+  usuarioId   Int?
   createdAt   DateTime @default(now())
   producto    Producto @relation(fields: [productoId], references: [id])
+  usuario     Usuario? @relation(fields: [usuarioId], references: [id])
 }
 
 model Venta {
@@ -82,8 +86,10 @@ model Venta {
   clienteNombre String?
   clienteDni    String?
   observaciones String?
+  usuarioId     Int?
   createdAt     DateTime    @default(now())
   items         VentaItem[]
+  usuario       Usuario?    @relation(fields: [usuarioId], references: [id])
 }
 
 model VentaItem {

@@ -1,5 +1,22 @@
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
+import { cookies } from 'next/headers';
+import jwt from 'jsonwebtoken';
+
+const JWT_SECRET = process.env.JWT_SECRET || 'tu-secreto-super-seguro-cambialo-en-produccion';
+
+// Función para obtener usuario del token
+async function getUserFromToken() {
+  try {
+    const cookieStore = await cookies();
+    const token = cookieStore.get('auth-token')?.value;
+    if (!token) return null;
+    const decoded = jwt.verify(token, JWT_SECRET);
+    return decoded;
+  } catch (error) {
+    return null;
+  }
+}
 
 // GET - Obtener todas las ventas con filtros
 export async function GET(request) {
@@ -28,6 +45,13 @@ export async function GET(request) {
                 categoria: true
               }
             }
+          }
+        },
+        usuario: {
+          select: {
+            id: true,
+            nombre: true,
+            email: true
           }
         }
       },
@@ -67,6 +91,18 @@ export async function POST(request) {
       );
     }
 
+    // Validar método de pago
+    const metodosValidos = ['EFECTIVO', 'TARJETA_DEBITO', 'TARJETA_CREDITO', 'TRANSFERENCIA', 'QR'];
+    if (!metodosValidos.includes(metodoPago)) {
+      return NextResponse.json(
+        { error: 'Método de pago no válido' },
+        { status: 400 }
+      );
+    }
+
+    // Obtener usuario autenticado
+    const user = await getUserFromToken();
+
     // Validar stock de todos los productos
     for (const item of items) {
       const producto = await prisma.producto.findUnique({
@@ -101,6 +137,7 @@ export async function POST(request) {
           clienteNombre,
           clienteDni,
           observaciones,
+          usuarioId: user?.id || null,
           items: {
             create: items.map(item => ({
               productoId: item.productoId,
@@ -115,11 +152,18 @@ export async function POST(request) {
             include: {
               producto: true
             }
+          },
+          usuario: {
+            select: {
+              id: true,
+              nombre: true,
+              email: true
+            }
           }
         }
       });
 
-      // Actualizar stock de cada producto
+      // Actualizar stock de cada producto y crear movimiento
       for (const item of items) {
         await tx.producto.update({
           where: { id: item.productoId },
@@ -136,7 +180,8 @@ export async function POST(request) {
             productoId: item.productoId,
             tipo: 'SALIDA',
             cantidad: item.cantidad,
-            motivo: `Venta #${nuevaVenta.id}`
+            motivo: `Venta #${nuevaVenta.id}`,
+            usuarioId: user?.id || null,
           }
         });
       }

@@ -406,9 +406,11 @@ export default function VentasPage() {
                 onChange={(e) => setMetodoPago(e.target.value)}
                 className="w-full px-2 sm:px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md focus:outline-none focus:ring-2 focus:ring-jmr-primary dark:bg-gray-700 dark:text-gray-100 text-sm"
               >
-                <option value="EFECTIVO">Efectivo</option>
-                <option value="TARJETA">Tarjeta</option>
-                <option value="TRANSFERENCIA">Transferencia</option>
+                <option value="EFECTIVO">💵 Efectivo</option>
+                <option value="TARJETA_DEBITO">💳 Tarjeta de Débito</option>
+                <option value="TARJETA_CREDITO">💳 Tarjeta de Crédito</option>
+                <option value="TRANSFERENCIA">🏦 Transferencia</option>
+                <option value="QR">📱 Código QR</option>
               </select>
             </div>
 

@@ -1,5 +1,22 @@
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
+import { cookies } from 'next/headers';
+import jwt from 'jsonwebtoken';
+
+const JWT_SECRET = process.env.JWT_SECRET || 'tu-secreto-super-seguro-cambialo-en-produccion';
+
+// Función para obtener usuario del token
+async function getUserFromToken() {
+  try {
+    const cookieStore = await cookies();
+    const token = cookieStore.get('auth-token')?.value;
+    if (!token) return null;
+    const decoded = jwt.verify(token, JWT_SECRET);
+    return decoded;
+  } catch (error) {
+    return null;
+  }
+}
 
 // GET - Obtener todos los movimientos
 export async function GET() {
@@ -11,11 +28,18 @@ export async function GET() {
             categoria: true
           }
         },
+        usuario: {
+          select: {
+            id: true,
+            nombre: true,
+            email: true
+          }
+        }
       },
       orderBy: {
         createdAt: 'desc',
       },
-      take: 100, // Limitar a los últimos 100 movimientos
+      take: 100,
     });
     return NextResponse.json(movimientos);
   } catch (error) {
@@ -26,7 +50,7 @@ export async function GET() {
   }
 }
 
-// POST - Registrar nuevo movimiento (entrada o salida de stock)
+// POST - Registrar nuevo movimiento
 export async function POST(request) {
   try {
     const body = await request.json();
@@ -53,6 +77,9 @@ export async function POST(request) {
         { status: 400 }
       );
     }
+
+    // Obtener usuario autenticado
+    const user = await getUserFromToken();
 
     // Obtener el producto actual
     const producto = await prisma.producto.findUnique({
@@ -88,11 +115,19 @@ export async function POST(request) {
           tipo,
           cantidad: cantidadNum,
           motivo,
+          usuarioId: user?.id || null,
         },
         include: {
           producto: {
             include: {
               categoria: true
+            }
+          },
+          usuario: {
+            select: {
+              id: true,
+              nombre: true,
+              email: true
             }
           }
         }

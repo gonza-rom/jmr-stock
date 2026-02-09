@@ -121,7 +121,7 @@ export default function LoginPage() {
         </form>
 
         {/* Información de prueba */}
-        <div className="mt-8 p-4 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-700 rounded-lg">
+        {/* <div className="mt-8 p-4 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-700 rounded-lg">
           <p className="text-sm font-semibold text-blue-800 dark:text-blue-300 mb-2">
             Usuarios de prueba:
           </p>
@@ -129,7 +129,7 @@ export default function LoginPage() {
             <p><strong>Admin:</strong> admin@jmr.com / admin123</p>
             <p><strong>Empleado:</strong> empleado@jmr.com / empleado123</p>
           </div>
-        </div>
+        </div> */}
       </div>
     </div>
   );

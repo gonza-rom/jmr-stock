@@ -14,6 +14,7 @@ export default function ProductosPage() {
   const [productos, setProductos] = useState([]);
   const [productosFiltrados, setProductosFiltrados] = useState([]);
   const [categorias, setCategorias] = useState([]);
+  const [proveedores, setProveedores] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [mostrarModalMasivo, setMostrarModalMasivo] = useState(false);
@@ -33,37 +34,16 @@ export default function ProductosPage() {
   const [precioMin, setPrecioMin] = useState('');
   const [precioMax, setPrecioMax] = useState('');
   const [soloStockBajo, setSoloStockBajo] = useState(false);
-
   const [paginaActual, setPaginaActual] = useState(1);
   const [productosPaginados, setProductosPaginados] = useState([]);
-
   const [seleccionados, setSeleccionados] = useState([]);
   const [modoSeleccion, setModoSeleccion] = useState(false);
 
-  const [proveedores, setProveedores] = useState([]);
-
-useEffect(() => {
-  const fetchProveedores = async () => {
-    try {
-      const response = await fetch('/api/proveedores');
-      const data = await response.json();
-      setProveedores(data);
-    } catch (err) {
-      console.error('Error al cargar proveedores');
-    }
-  };
-
-  const fetchProductos = async () => {
-    // tu código de productos
-  };
-
-  fetchProveedores();
-  fetchProductos();
-}, []);
-
+  // ✅ UN SOLO useEffect inicial - sin duplicados
   useEffect(() => {
     fetchProductos();
     fetchCategorias();
+    fetchProveedores();
   }, []);
 
   useEffect(() => {
@@ -97,6 +77,16 @@ useEffect(() => {
     }
   };
 
+  const fetchProveedores = async () => {
+    try {
+      const response = await fetch('/api/proveedores');
+      const data = await response.json();
+      setProveedores(data);
+    } catch (err) {
+      console.error('Error al cargar proveedores');
+    }
+  };
+
   const aplicarFiltros = () => {
     let resultado = [...productos];
 
@@ -114,41 +104,19 @@ useEffect(() => {
       resultado = resultado.filter(p => p.categoriaId === parseInt(categoriaFiltro));
     }
 
-    if (precioMin) {
-      resultado = resultado.filter(p => p.precio >= parseFloat(precioMin));
-    }
-    if (precioMax) {
-      resultado = resultado.filter(p => p.precio <= parseFloat(precioMax));
-    }
-
-    if (soloStockBajo) {
-      resultado = resultado.filter(p => p.stock <= p.stockMinimo);
-    }
+    if (precioMin) resultado = resultado.filter(p => p.precio >= parseFloat(precioMin));
+    if (precioMax) resultado = resultado.filter(p => p.precio <= parseFloat(precioMax));
+    if (soloStockBajo) resultado = resultado.filter(p => p.stock <= p.stockMinimo);
 
     resultado.sort((a, b) => {
       let valorA, valorB;
       switch (ordenarPor) {
-        case 'nombre':
-          valorA = a.nombre.toLowerCase();
-          valorB = b.nombre.toLowerCase();
-          break;
-        case 'precio':
-          valorA = a.precio;
-          valorB = b.precio;
-          break;
-        case 'stock':
-          valorA = a.stock;
-          valorB = b.stock;
-          break;
-        default:
-          return 0;
+        case 'nombre': valorA = a.nombre.toLowerCase(); valorB = b.nombre.toLowerCase(); break;
+        case 'precio': valorA = a.precio; valorB = b.precio; break;
+        case 'stock': valorA = a.stock; valorB = b.stock; break;
+        default: return 0;
       }
-
-      if (ordenDireccion === 'asc') {
-        return valorA > valorB ? 1 : -1;
-      } else {
-        return valorA < valorB ? 1 : -1;
-      }
+      return ordenDireccion === 'asc' ? (valorA > valorB ? 1 : -1) : (valorA < valorB ? 1 : -1);
     });
 
     setProductosFiltrados(resultado);
@@ -196,14 +164,9 @@ useEffect(() => {
 
   const handleDelete = async (id) => {
     if (!confirm('¿Estás seguro de eliminar este producto?')) return;
-
     try {
-      const response = await fetch(`/api/productos/${id}`, {
-        method: 'DELETE',
-      });
-
+      const response = await fetch(`/api/productos/${id}`, { method: 'DELETE' });
       if (!response.ok) throw new Error('Error al eliminar');
-
       setProductos(productos.filter(p => p.id !== id));
       setSeleccionados(seleccionados.filter(selId => selId !== id));
       alert('Producto eliminado correctamente');
@@ -213,18 +176,10 @@ useEffect(() => {
   };
 
   const handleEliminarSeleccionados = async () => {
-    if (seleccionados.length === 0) {
-      alert('No hay productos seleccionados');
-      return;
-    }
-
+    if (seleccionados.length === 0) { alert('No hay productos seleccionados'); return; }
     if (!confirm(`¿Estás seguro de eliminar ${seleccionados.length} productos?`)) return;
-
     try {
-      await Promise.all(seleccionados.map(id => 
-        fetch(`/api/productos/${id}`, { method: 'DELETE' })
-      ));
-
+      await Promise.all(seleccionados.map(id => fetch(`/api/productos/${id}`, { method: 'DELETE' })));
       setProductos(productos.filter(p => !seleccionados.includes(p.id)));
       setSeleccionados([]);
       alert(`${seleccionados.length} productos eliminados correctamente`);
@@ -234,42 +189,67 @@ useEffect(() => {
   };
 
   const handleDuplicarSeleccionados = async () => {
-    if (seleccionados.length === 0) {
-      alert('No hay productos seleccionados');
-      return;
-    }
-
+    if (seleccionados.length === 0) { alert('No hay productos seleccionados'); return; }
     if (!confirm(`¿Duplicar ${seleccionados.length} productos?`)) return;
-
     try {
       const productosDuplicar = productos.filter(p => seleccionados.includes(p.id));
-      
       for (const producto of productosDuplicar) {
-        const nuevoProd = {
-          nombre: `${producto.nombre} (Copia)`,
-          descripcion: producto.descripcion,
-          codigoProducto: null,
-          precio: producto.precio,
-          stock: 0,
-          stockMinimo: producto.stockMinimo,
-          imagen: producto.imagen,
-          codigoBarras: null,
-          categoriaId: producto.categoriaId,
-          proveedorId: producto.proveedorId,
-        };
-
         await fetch('/api/productos', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(nuevoProd),
+          body: JSON.stringify({
+            nombre: `${producto.nombre} (Copia)`,
+            descripcion: producto.descripcion,
+            codigoProducto: null,  // null para evitar conflicto de unique
+            codigoBarras: null,    // null para evitar conflicto de unique
+            precio: producto.precio,
+            stock: 0,
+            stockMinimo: producto.stockMinimo,
+            imagen: producto.imagen,
+            imagenes: producto.imagenes || [],
+            categoriaId: producto.categoriaId,
+            proveedorId: producto.proveedorId,
+          }),
         });
       }
-
       alert(`${seleccionados.length} productos duplicados correctamente`);
       setSeleccionados([]);
       fetchProductos();
     } catch (err) {
       alert('Error al duplicar productos');
+    }
+  };
+
+  const handleActualizacionMasiva = async () => {
+    if (seleccionados.length === 0) { alert('No hay productos seleccionados'); return; }
+    let datos = {};
+    switch (accionMasiva) {
+      case 'CAMBIAR_CATEGORIA':
+        if (!datosMasivos.categoriaId) { alert('Selecciona una categoría'); return; }
+        datos = { categoriaId: datosMasivos.categoriaId };
+        break;
+      case 'CAMBIAR_PROVEEDOR':
+        if (!datosMasivos.proveedorId) { alert('Selecciona un proveedor'); return; }
+        datos = { proveedorId: datosMasivos.proveedorId };
+        break;
+      case 'AJUSTAR_STOCK':
+        if (!datosMasivos.cantidadStock) { alert('Ingresa una cantidad'); return; }
+        datos = { tipo: datosMasivos.tipoStock, cantidad: datosMasivos.cantidadStock, motivo: datosMasivos.motivoStock };
+        break;
+    }
+    try {
+      const response = await fetch('/api/productos/masivo', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ productosIds: seleccionados, accion: accionMasiva, datos })
+      });
+      if (!response.ok) { const error = await response.json(); throw new Error(error.error); }
+      alert(`${seleccionados.length} productos actualizados correctamente`);
+      setMostrarModalMasivo(false);
+      setSeleccionados([]);
+      fetchProductos();
+    } catch (err) {
+      alert(err.message || 'Error al actualizar productos');
     }
   };
 
@@ -281,68 +261,6 @@ useEffect(() => {
     );
   }
 
-    const handleActualizacionMasiva = async () => {
-    if (seleccionados.length === 0) {
-      alert('No hay productos seleccionados');
-      return;
-    }
-
-    let datos = {};
-    
-    switch (accionMasiva) {
-      case 'CAMBIAR_CATEGORIA':
-        if (!datosMasivos.categoriaId) {
-          alert('Selecciona una categoría');
-          return;
-        }
-        datos = { categoriaId: datosMasivos.categoriaId };
-        break;
-      
-      case 'CAMBIAR_PROVEEDOR':
-        if (!datosMasivos.proveedorId) {
-          alert('Selecciona un proveedor');
-          return;
-        }
-        datos = { proveedorId: datosMasivos.proveedorId };
-        break;
-      
-      case 'AJUSTAR_STOCK':
-        if (!datosMasivos.cantidadStock) {
-          alert('Ingresa una cantidad');
-          return;
-        }
-        datos = {
-          tipo: datosMasivos.tipoStock,
-          cantidad: datosMasivos.cantidadStock,
-          motivo: datosMasivos.motivoStock
-        };
-        break;
-    }
-
-    try {
-      const response = await fetch('/api/productos/masivo', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          productosIds: seleccionados,
-          accion: accionMasiva,
-          datos
-        })
-      });
-
-      if (!response.ok) {
-        const error = await response.json();
-        throw new Error(error.error);
-      }
-
-      alert(`${seleccionados.length} productos actualizados correctamente`);
-      setMostrarModalMasivo(false);
-      setSeleccionados([]);
-      fetchProductos();
-    } catch (err) {
-      alert(err.message || 'Error al actualizar productos');
-    }
-  };
   return (
     <div className="space-y-6">
       <div className="flex justify-between items-center">
@@ -387,31 +305,20 @@ useEffect(() => {
             {seleccionados.length} producto(s) seleccionado(s)
           </span>
           <div className="flex gap-2">
-            <button
-              onClick={handleDuplicarSeleccionados}
-              className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-md flex items-center gap-2 transition-colors"
-            >
-              <Copy className="w-4 h-4" />
-              Duplicar
+            <button onClick={handleDuplicarSeleccionados} className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-md flex items-center gap-2 transition-colors">
+              <Copy className="w-4 h-4" /> Duplicar
             </button>
-            <button
-              onClick={handleEliminarSeleccionados}
-              className="bg-red-600 hover:bg-red-700 text-white px-4 py-2 rounded-md flex items-center gap-2 transition-colors"
-            >
-              <Trash2 className="w-4 h-4" />
-              Eliminar
+            <button onClick={handleEliminarSeleccionados} className="bg-red-600 hover:bg-red-700 text-white px-4 py-2 rounded-md flex items-center gap-2 transition-colors">
+              <Trash2 className="w-4 h-4" /> Eliminar
             </button>
-            <button
-              onClick={() => setMostrarModalMasivo(true)}
-              className="bg-purple-600 hover:bg-purple-700 text-white px-4 py-2 rounded-md flex items-center gap-2 transition-colors"
-            >
-              <Edit className="w-4 h-4" />
-              Editar Masivo
+            <button onClick={() => setMostrarModalMasivo(true)} className="bg-purple-600 hover:bg-purple-700 text-white px-4 py-2 rounded-md flex items-center gap-2 transition-colors">
+              <Edit className="w-4 h-4" /> Editar Masivo
             </button>
           </div>
         </div>
       )}
 
+      {/* Barra de búsqueda y filtros */}
       <div className="bg-white dark:bg-gray-800 rounded-lg shadow-md p-4 space-y-4">
         <div className="flex gap-4">
           <div className="flex-1 relative">
@@ -430,9 +337,7 @@ useEffect(() => {
           >
             <Filter className="w-5 h-5" />
             Filtros
-            {hayFiltrosActivos() && (
-              <span className="bg-blue-600 text-white rounded-full w-2 h-2"></span>
-            )}
+            {hayFiltrosActivos() && <span className="bg-blue-600 text-white rounded-full w-2 h-2"></span>}
           </button>
         </div>
 
@@ -441,87 +346,45 @@ useEffect(() => {
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
               <div>
                 <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Categoría</label>
-                <select
-                  value={categoriaFiltro}
-                  onChange={(e) => setCategoriaFiltro(e.target.value)}
-                  className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 text-gray-900 dark:text-gray-100 dark:bg-gray-700"
-                >
+                <select value={categoriaFiltro} onChange={(e) => setCategoriaFiltro(e.target.value)} className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 text-gray-900 dark:text-gray-100 dark:bg-gray-700">
                   <option value="">Todas</option>
-                  {categorias.map((cat) => (
-                    <option key={cat.id} value={cat.id}>{cat.nombre}</option>
-                  ))}
+                  {categorias.map((cat) => (<option key={cat.id} value={cat.id}>{cat.nombre}</option>))}
                 </select>
               </div>
-
               <div>
                 <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Ordenar por</label>
-                <select
-                  value={ordenarPor}
-                  onChange={(e) => setOrdenarPor(e.target.value)}
-                  className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 text-gray-900 dark:text-gray-100 dark:bg-gray-700"
-                >
+                <select value={ordenarPor} onChange={(e) => setOrdenarPor(e.target.value)} className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 text-gray-900 dark:text-gray-100 dark:bg-gray-700">
                   <option value="nombre">Nombre</option>
                   <option value="precio">Precio</option>
                   <option value="stock">Stock</option>
                 </select>
               </div>
-
               <div>
                 <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Orden</label>
-                <select
-                  value={ordenDireccion}
-                  onChange={(e) => setOrdenDireccion(e.target.value)}
-                  className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 text-gray-900 dark:text-gray-100 dark:bg-gray-700"
-                >
+                <select value={ordenDireccion} onChange={(e) => setOrdenDireccion(e.target.value)} className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 text-gray-900 dark:text-gray-100 dark:bg-gray-700">
                   <option value="asc">Ascendente</option>
                   <option value="desc">Descendente</option>
                 </select>
               </div>
             </div>
-
             <div>
               <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
                 <DollarSign className="w-4 h-4 inline" /> Rango de Precios
               </label>
               <div className="grid grid-cols-2 gap-4">
-                <input
-                  type="number"
-                  placeholder="Mínimo"
-                  value={precioMin}
-                  onChange={(e) => setPrecioMin(e.target.value)}
-                  className="px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 text-gray-900 dark:text-gray-100 dark:bg-gray-700"
-                />
-                <input
-                  type="number"
-                  placeholder="Máximo"
-                  value={precioMax}
-                  onChange={(e) => setPrecioMax(e.target.value)}
-                  className="px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 text-gray-900 dark:text-gray-100 dark:bg-gray-700"
-                />
+                <input type="number" placeholder="Mínimo" value={precioMin} onChange={(e) => setPrecioMin(e.target.value)} className="px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 text-gray-900 dark:text-gray-100 dark:bg-gray-700" />
+                <input type="number" placeholder="Máximo" value={precioMax} onChange={(e) => setPrecioMax(e.target.value)} className="px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 text-gray-900 dark:text-gray-100 dark:bg-gray-700" />
               </div>
             </div>
-
             <div className="flex items-center">
-              <input
-                id="stock-bajo"
-                type="checkbox"
-                checked={soloStockBajo}
-                onChange={(e) => setSoloStockBajo(e.target.checked)}
-                className="w-4 h-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
-              />
+              <input id="stock-bajo" type="checkbox" checked={soloStockBajo} onChange={(e) => setSoloStockBajo(e.target.checked)} className="w-4 h-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500" />
               <label htmlFor="stock-bajo" className="ml-2 text-sm font-medium text-gray-700 dark:text-gray-300 flex items-center gap-1">
-                <AlertTriangle className="w-4 h-4 text-red-600" />
-                Solo stock bajo
+                <AlertTriangle className="w-4 h-4 text-red-600" /> Solo stock bajo
               </label>
             </div>
-
             {hayFiltrosActivos() && (
-              <button
-                onClick={limpiarFiltros}
-                className="w-full bg-gray-200 dark:bg-gray-700 hover:bg-gray-300 dark:hover:bg-gray-600 px-4 py-2 rounded-md flex items-center justify-center gap-2 transition-colors"
-              >
-                <X className="w-4 h-4" />
-                Limpiar filtros
+              <button onClick={limpiarFiltros} className="w-full bg-gray-200 dark:bg-gray-700 hover:bg-gray-300 dark:hover:bg-gray-600 px-4 py-2 rounded-md flex items-center justify-center gap-2 transition-colors">
+                <X className="w-4 h-4" /> Limpiar filtros
               </button>
             )}
           </div>
@@ -546,12 +409,7 @@ useEffect(() => {
                   <tr>
                     {modoSeleccion && (
                       <th className="px-6 py-3 text-left">
-                        <input
-                          type="checkbox"
-                          checked={seleccionados.length === productosPaginados.length && productosPaginados.length > 0}
-                          onChange={toggleTodos}
-                          className="w-4 h-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
-                        />
+                        <input type="checkbox" checked={seleccionados.length === productosPaginados.length && productosPaginados.length > 0} onChange={toggleTodos} className="w-4 h-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500" />
                       </th>
                     )}
                     <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Imagen</th>
@@ -568,33 +426,15 @@ useEffect(() => {
                     <tr key={producto.id} className="hover:bg-gray-50 dark:hover:bg-gray-700/50">
                       {modoSeleccion && (
                         <td className="px-6 py-4">
-                          <input
-                            type="checkbox"
-                            checked={seleccionados.includes(producto.id)}
-                            onChange={() => toggleSeleccion(producto.id)}
-                            className="w-4 h-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
-                          />
+                          <input type="checkbox" checked={seleccionados.includes(producto.id)} onChange={() => toggleSeleccion(producto.id)} className="w-4 h-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500" />
                         </td>
                       )}
                       <td className="px-6 py-4 whitespace-nowrap">
                         <div className="relative w-16 h-16 rounded-lg overflow-hidden bg-gray-100 dark:bg-gray-700">
-                          {/* ⭐ LÓGICA CORREGIDA: Priorizar imagenes[0], fallback a imagen */}
                           {producto.imagenes && producto.imagenes.length > 0 ? (
-                            <Image 
-                              src={producto.imagenes[0]} 
-                              alt={producto.nombre} 
-                              fill 
-                              className="object-cover" 
-                              sizes="64px" 
-                            />
+                            <Image src={producto.imagenes[0]} alt={producto.nombre} fill className="object-cover" sizes="64px" />
                           ) : producto.imagen ? (
-                            <Image 
-                              src={producto.imagen} 
-                              alt={producto.nombre} 
-                              fill 
-                              className="object-cover" 
-                              sizes="64px" 
-                            />
+                            <Image src={producto.imagen} alt={producto.nombre} fill className="object-cover" sizes="64px" />
                           ) : (
                             <div className="w-full h-full flex items-center justify-center">
                               <Package className="w-8 h-8 text-gray-400" />
@@ -609,14 +449,12 @@ useEffect(() => {
                         )}
                         {producto.codigoProducto && (
                           <div className="flex items-center gap-1 text-xs text-blue-600 dark:text-blue-400 mt-1 font-medium">
-                            <Package className="w-3 h-3" />
-                            {producto.codigoProducto}
+                            <Package className="w-3 h-3" />{producto.codigoProducto}
                           </div>
                         )}
                         {producto.codigoBarras && (
                           <div className="flex items-center gap-1 text-xs text-gray-400 dark:text-gray-500 mt-1">
-                            <Barcode className="w-3 h-3" />
-                            {producto.codigoBarras}
+                            <Barcode className="w-3 h-3" />{producto.codigoBarras}
                           </div>
                         )}
                       </td>
@@ -633,9 +471,7 @@ useEffect(() => {
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap">
                         <div className="flex items-center gap-2">
-                          {producto.stock <= producto.stockMinimo && (
-                            <AlertTriangle className="w-4 h-4 text-red-600 dark:text-red-400" />
-                          )}
+                          {producto.stock <= producto.stockMinimo && <AlertTriangle className="w-4 h-4 text-red-600 dark:text-red-400" />}
                           <span className={`font-medium ${producto.stock <= producto.stockMinimo ? 'text-red-600 dark:text-red-400' : 'text-gray-900 dark:text-gray-100'}`}>
                             {producto.stock}
                           </span>
@@ -664,175 +500,92 @@ useEffect(() => {
 
           {totalPaginas > 1 && (
             <div className="flex items-center justify-between bg-white dark:bg-gray-800 px-4 py-3 rounded-lg shadow-md">
-              <div className="text-sm text-gray-700 dark:text-gray-300">
-                Página {paginaActual} de {totalPaginas}
-              </div>
+              <div className="text-sm text-gray-700 dark:text-gray-300">Página {paginaActual} de {totalPaginas}</div>
               <div className="flex gap-2">
-                <button
-                  onClick={() => setPaginaActual(Math.max(1, paginaActual - 1))}
-                  disabled={paginaActual === 1}
-                  className="px-3 py-1 border border-gray-300 dark:border-gray-600 rounded-md disabled:opacity-50 disabled:cursor-not-allowed hover:bg-gray-50 dark:hover:bg-gray-700"
-                >
+                <button onClick={() => setPaginaActual(Math.max(1, paginaActual - 1))} disabled={paginaActual === 1} className="px-3 py-1 border border-gray-300 dark:border-gray-600 rounded-md disabled:opacity-50 disabled:cursor-not-allowed hover:bg-gray-50 dark:hover:bg-gray-700">
                   <ChevronLeft className="w-5 h-5" />
                 </button>
-                
                 {Array.from({ length: totalPaginas }, (_, i) => i + 1)
                   .filter(num => num === 1 || num === totalPaginas || (num >= paginaActual - 1 && num <= paginaActual + 1))
                   .map((num, idx, arr) => (
                     <div key={num} className="flex items-center">
                       {idx > 0 && arr[idx - 1] !== num - 1 && <span className="px-2 text-gray-400">...</span>}
-                      <button
-                        onClick={() => setPaginaActual(num)}
-                        className={`px-3 py-1 border rounded-md ${paginaActual === num ? 'bg-blue-600 text-white border-blue-600' : 'border-gray-300 dark:border-gray-600 hover:bg-gray-50 dark:hover:bg-gray-700'}`}
-                      >
+                      <button onClick={() => setPaginaActual(num)} className={`px-3 py-1 border rounded-md ${paginaActual === num ? 'bg-blue-600 text-white border-blue-600' : 'border-gray-300 dark:border-gray-600 hover:bg-gray-50 dark:hover:bg-gray-700'}`}>
                         {num}
                       </button>
                     </div>
                   ))}
-
-                <button
-                  onClick={() => setPaginaActual(Math.min(totalPaginas, paginaActual + 1))}
-                  disabled={paginaActual === totalPaginas}
-                  className="px-3 py-1 border border-gray-300 dark:border-gray-600 rounded-md disabled:opacity-50 disabled:cursor-not-allowed hover:bg-gray-50 dark:hover:bg-gray-700"
-                >
+                <button onClick={() => setPaginaActual(Math.min(totalPaginas, paginaActual + 1))} disabled={paginaActual === totalPaginas} className="px-3 py-1 border border-gray-300 dark:border-gray-600 rounded-md disabled:opacity-50 disabled:cursor-not-allowed hover:bg-gray-50 dark:hover:bg-gray-700">
                   <ChevronRight className="w-5 h-5" />
                 </button>
               </div>
             </div>
           )}
+
+          {/* Modal edición masiva */}
           {mostrarModalMasivo && (
-          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-            <div className="bg-white dark:bg-gray-800 rounded-lg shadow-xl max-w-md w-full max-h-[90vh] overflow-y-auto">
-              <div className="p-6">
-                <h2 className="text-xl font-bold text-gray-800 dark:text-gray-100 mb-4">
-                  Edición Masiva ({seleccionados.length} productos)
-                </h2>
-                
-                <div className="space-y-4">
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                      Acción
-                    </label>
-                    <select
-                      value={accionMasiva}
-                      onChange={(e) => setAccionMasiva(e.target.value)}
-                      className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 text-gray-900 dark:text-gray-100 dark:bg-gray-700"
-                    >
-                      <option value="CAMBIAR_CATEGORIA">Cambiar Categoría</option>
-                      <option value="CAMBIAR_PROVEEDOR">Cambiar Proveedor</option>
-                      <option value="AJUSTAR_STOCK">Ajustar Stock</option>
-                    </select>
-                  </div>
-
-                  {accionMasiva === 'CAMBIAR_CATEGORIA' && (
+            <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+              <div className="bg-white dark:bg-gray-800 rounded-lg shadow-xl max-w-md w-full max-h-[90vh] overflow-y-auto">
+                <div className="p-6">
+                  <h2 className="text-xl font-bold text-gray-800 dark:text-gray-100 mb-4">
+                    Edición Masiva ({seleccionados.length} productos)
+                  </h2>
+                  <div className="space-y-4">
                     <div>
-                      <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                        Nueva Categoría
-                      </label>
-                      <select
-                        value={datosMasivos.categoriaId}
-                        onChange={(e) => setDatosMasivos({ ...datosMasivos, categoriaId: e.target.value })}
-                        className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 text-gray-900 dark:text-gray-100 dark:bg-gray-700"
-                      >
-                        <option value="">Seleccionar...</option>
-                        {categorias.map((cat) => (
-                          <option key={cat.id} value={cat.id}>{cat.nombre}</option>
-                        ))}
+                      <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Acción</label>
+                      <select value={accionMasiva} onChange={(e) => setAccionMasiva(e.target.value)} className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 text-gray-900 dark:text-gray-100 dark:bg-gray-700">
+                        <option value="CAMBIAR_CATEGORIA">Cambiar Categoría</option>
+                        <option value="CAMBIAR_PROVEEDOR">Cambiar Proveedor</option>
+                        <option value="AJUSTAR_STOCK">Ajustar Stock</option>
                       </select>
                     </div>
-                  )}
-
-                  {accionMasiva === 'CAMBIAR_PROVEEDOR' && (
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                        Nuevo Proveedor
-                      </label>
-                      <select
-                        value={datosMasivos.proveedorId}
-                        onChange={(e) => setDatosMasivos({ ...datosMasivos, proveedorId: e.target.value })}
-                        className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 text-gray-900 dark:text-gray-100 dark:bg-gray-700"
-                      >
-                        <option value="">Seleccionar...</option>
-                        {proveedores.map((prov) => (
-                          <option key={prov.id} value={prov.id}>{prov.nombre}</option>
-                        ))}
-                      </select>
-                    </div>
-                  )}
-
-                  {accionMasiva === 'AJUSTAR_STOCK' && (
-                    <>
+                    {accionMasiva === 'CAMBIAR_CATEGORIA' && (
                       <div>
-                        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                          Tipo de Ajuste
-                        </label>
-                        <select
-                          value={datosMasivos.tipoStock}
-                          onChange={(e) => setDatosMasivos({ ...datosMasivos, tipoStock: e.target.value })}
-                          className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 text-gray-900 dark:text-gray-100 dark:bg-gray-700"
-                        >
-                          <option value="SUMAR">➕ Sumar al stock</option>
-                          <option value="RESTAR">➖ Restar del stock</option>
-                          <option value="ESTABLECER">📝 Establecer stock</option>
+                        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Nueva Categoría</label>
+                        <select value={datosMasivos.categoriaId} onChange={(e) => setDatosMasivos({ ...datosMasivos, categoriaId: e.target.value })} className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 text-gray-900 dark:text-gray-100 dark:bg-gray-700">
+                          <option value="">Seleccionar...</option>
+                          {categorias.map((cat) => (<option key={cat.id} value={cat.id}>{cat.nombre}</option>))}
                         </select>
                       </div>
-                      
+                    )}
+                    {accionMasiva === 'CAMBIAR_PROVEEDOR' && (
                       <div>
-                        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                          Cantidad
-                        </label>
-                        <input
-                          type="number"
-                          value={datosMasivos.cantidadStock}
-                          onChange={(e) => setDatosMasivos({ ...datosMasivos, cantidadStock: e.target.value })}
-                          min="0"
-                          className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 text-gray-900 dark:text-gray-100 dark:bg-gray-700"
-                        />
+                        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Nuevo Proveedor</label>
+                        <select value={datosMasivos.proveedorId} onChange={(e) => setDatosMasivos({ ...datosMasivos, proveedorId: e.target.value })} className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 text-gray-900 dark:text-gray-100 dark:bg-gray-700">
+                          <option value="">Seleccionar...</option>
+                          {proveedores.map((prov) => (<option key={prov.id} value={prov.id}>{prov.nombre}</option>))}
+                        </select>
                       </div>
-
-                      <div>
-                        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                          Motivo (opcional)
-                        </label>
-                        <input
-                          type="text"
-                          value={datosMasivos.motivoStock}
-                          onChange={(e) => setDatosMasivos({ ...datosMasivos, motivoStock: e.target.value })}
-                          placeholder="Ej: Inventario anual"
-                          className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 text-gray-900 dark:text-gray-100 dark:bg-gray-700"
-                        />
-                      </div>
-                    </>
-                  )}
-
-                  <div className="flex gap-3 pt-4">
-                    <button
-                      onClick={handleActualizacionMasiva}
-                      className="flex-1 bg-blue-600 hover:bg-blue-700 text-white py-2 px-4 rounded-md transition-colors"
-                    >
-                      Aplicar Cambios
-                    </button>
-                    <button
-                      onClick={() => {
-                        setMostrarModalMasivo(false);
-                        setDatosMasivos({
-                          categoriaId: '',
-                          proveedorId: '',
-                          tipoStock: 'SUMAR',
-                          cantidadStock: '',
-                          motivoStock: ''
-                        });
-                      }}
-                      className="flex-1 bg-gray-300 dark:bg-gray-600 hover:bg-gray-400 dark:hover:bg-gray-500 text-gray-800 dark:text-gray-100 py-2 px-4 rounded-md transition-colors"
-                    >
-                      Cancelar
-                    </button>
+                    )}
+                    {accionMasiva === 'AJUSTAR_STOCK' && (
+                      <>
+                        <div>
+                          <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Tipo de Ajuste</label>
+                          <select value={datosMasivos.tipoStock} onChange={(e) => setDatosMasivos({ ...datosMasivos, tipoStock: e.target.value })} className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 text-gray-900 dark:text-gray-100 dark:bg-gray-700">
+                            <option value="SUMAR">➕ Sumar al stock</option>
+                            <option value="RESTAR">➖ Restar del stock</option>
+                            <option value="ESTABLECER">📝 Establecer stock</option>
+                          </select>
+                        </div>
+                        <div>
+                          <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Cantidad</label>
+                          <input type="number" value={datosMasivos.cantidadStock} onChange={(e) => setDatosMasivos({ ...datosMasivos, cantidadStock: e.target.value })} min="0" className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 text-gray-900 dark:text-gray-100 dark:bg-gray-700" />
+                        </div>
+                        <div>
+                          <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Motivo (opcional)</label>
+                          <input type="text" value={datosMasivos.motivoStock} onChange={(e) => setDatosMasivos({ ...datosMasivos, motivoStock: e.target.value })} placeholder="Ej: Inventario anual" className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 text-gray-900 dark:text-gray-100 dark:bg-gray-700" />
+                        </div>
+                      </>
+                    )}
+                    <div className="flex gap-3 pt-4">
+                      <button onClick={handleActualizacionMasiva} className="flex-1 bg-blue-600 hover:bg-blue-700 text-white py-2 px-4 rounded-md transition-colors">Aplicar Cambios</button>
+                      <button onClick={() => { setMostrarModalMasivo(false); setDatosMasivos({ categoriaId: '', proveedorId: '', tipoStock: 'SUMAR', cantidadStock: '', motivoStock: '' }); }} className="flex-1 bg-gray-300 dark:bg-gray-600 hover:bg-gray-400 dark:hover:bg-gray-500 text-gray-800 dark:text-gray-100 py-2 px-4 rounded-md transition-colors">Cancelar</button>
+                    </div>
                   </div>
                 </div>
               </div>
             </div>
-          </div>
-        )}
+          )}
         </>
       )}
     </div>

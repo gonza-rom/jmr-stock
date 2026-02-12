@@ -20,6 +20,13 @@ export async function GET() {
   }
 }
 
+// Helper: convierte string vacío o undefined a null
+function toNullIfEmpty(value) {
+  if (value === null || value === undefined) return null;
+  const trimmed = String(value).trim();
+  return trimmed === '' ? null : trimmed;
+}
+
 // POST - Crear nuevo producto
 export async function POST(request) {
   try {
@@ -33,19 +40,48 @@ export async function POST(request) {
       );
     }
 
+    // ✅ Usar helper para convertir vacíos a null - esto evita el error de unique constraint
+    const codigoProductoFinal = toNullIfEmpty(codigoProducto);
+    const codigoBarrasFinal = toNullIfEmpty(codigoBarras);
+
+    // ✅ Verificar manualmente si el código ya existe (para dar mejor mensaje de error)
+    if (codigoProductoFinal) {
+      const existente = await prisma.producto.findUnique({
+        where: { codigoProducto: codigoProductoFinal },
+      });
+      if (existente) {
+        return NextResponse.json(
+          { error: `El código de producto "${codigoProductoFinal}" ya está en uso por: ${existente.nombre}` },
+          { status: 409 }
+        );
+      }
+    }
+
+    if (codigoBarrasFinal) {
+      const existente = await prisma.producto.findUnique({
+        where: { codigoBarras: codigoBarrasFinal },
+      });
+      if (existente) {
+        return NextResponse.json(
+          { error: `El código de barras "${codigoBarrasFinal}" ya está en uso por: ${existente.nombre}` },
+          { status: 409 }
+        );
+      }
+    }
+
     const producto = await prisma.producto.create({
       data: {
-        nombre,
-        descripcion: descripcion || null,
+        nombre: nombre.trim(),
+        descripcion: toNullIfEmpty(descripcion),
         precio: parseFloat(precio),
         stock: stock ? parseInt(stock) : 0,
         stockMinimo: stockMinimo !== undefined && stockMinimo !== '' ? parseInt(stockMinimo) : 5,
-        imagen: imagen || null,
-        imagenes: imagenes || [],
+        imagen: toNullIfEmpty(imagen) || (Array.isArray(imagenes) && imagenes.length > 0 ? imagenes[0] : null),
+        imagenes: Array.isArray(imagenes) ? imagenes : [],
         categoriaId: parseInt(categoriaId),
         proveedorId: parseInt(proveedorId),
-        codigoBarras: codigoBarras && codigoBarras.trim() !== '' ? codigoBarras.trim() : null,
-        codigoProducto: codigoProducto && codigoProducto.trim() !== '' ? codigoProducto.trim() : null,
+        codigoBarras: codigoBarrasFinal,      // ✅ null si vacío
+        codigoProducto: codigoProductoFinal,  // ✅ null si vacío
       },
       include: {
         categoria: true,
@@ -56,7 +92,6 @@ export async function POST(request) {
     return NextResponse.json(producto, { status: 201 });
   } catch (error) {
     if (error.code === 'P2002') {
-      // Unique constraint violation
       const field = error.meta?.target?.[0];
       if (field === 'codigoBarras') {
         return NextResponse.json(

@@ -55,6 +55,7 @@ model Producto {
   stock           Int                @default(0)
   stockMinimo     Int                @default(5)
   imagen          String?
+  imagenes      String[]           // Array de URLs de imágenes para galería
   codigoBarras    String?            @unique
   categoriaId     Int
   proveedorId     Int

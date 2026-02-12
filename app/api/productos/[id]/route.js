@@ -68,6 +68,7 @@ export async function PUT(request, context) {
     if (body.stock !== undefined) updateData.stock = parseInt(body.stock);
     if (body.stockMinimo !== undefined) updateData.stockMinimo = parseInt(body.stockMinimo);
     if (body.imagen !== undefined) updateData.imagen = body.imagen || null;
+    if (body.imagenes !== undefined) updateData.imagenes = body.imagenes || [];
     if (body.categoriaId !== undefined) updateData.categoriaId = parseInt(body.categoriaId);
     if (body.proveedorId !== undefined) updateData.proveedorId = parseInt(body.proveedorId);
     if (body.codigoBarras !== undefined) updateData.codigoBarras = body.codigoBarras && body.codigoBarras.trim() !== '' ? body.codigoBarras.trim() : null;

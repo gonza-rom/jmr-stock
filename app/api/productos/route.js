@@ -24,7 +24,7 @@ export async function GET() {
 export async function POST(request) {
   try {
     const body = await request.json();
-    const { nombre, descripcion, precio, stock, stockMinimo, imagen, categoriaId, proveedorId, codigoBarras, codigoProducto } = body;
+    const { nombre, descripcion, precio, stock, stockMinimo, imagen, imagenes, categoriaId, proveedorId, codigoBarras, codigoProducto } = body;
 
     if (!nombre || precio === undefined || precio === '' || !categoriaId || !proveedorId) {
       return NextResponse.json(
@@ -41,6 +41,7 @@ export async function POST(request) {
         stock: stock ? parseInt(stock) : 0,
         stockMinimo: stockMinimo !== undefined && stockMinimo !== '' ? parseInt(stockMinimo) : 5,
         imagen: imagen || null,
+        imagenes: imagenes || [],
         categoriaId: parseInt(categoriaId),
         proveedorId: parseInt(proveedorId),
         codigoBarras: codigoBarras && codigoBarras.trim() !== '' ? codigoBarras.trim() : null,

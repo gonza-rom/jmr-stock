@@ -1,46 +1,63 @@
 'use client';
 
 import { useState } from 'react';
-import { Upload, X, Image as ImageIcon, Loader, CheckCircle } from 'lucide-react';
+import { Upload, X, Image as ImageIcon, Loader, CheckCircle, AlertCircle } from 'lucide-react';
 
 /**
  * Componente para subir múltiples imágenes a Cloudinary
- * Para JMR Stock - Sistema de inventario
+ * VERSIÓN MEJORADA con mejor debugging y manejo de errores
  */
 export default function MultipleImageUpload({ value = [], onChange }) {
   const [uploading, setUploading] = useState(false);
   const [uploadProgress, setUploadProgress] = useState(0);
   const [error, setError] = useState('');
 
-  // Array de URLs de imágenes
   const imagenes = Array.isArray(value) ? value : [];
 
   /**
-   * Sube una imagen a Cloudinary
+   * Sube una imagen a Cloudinary con mejor manejo de errores
    */
   const subirImagenACloudinary = async (file) => {
+    // ⚠️ VALIDAR VARIABLES DE ENTORNO
+    const cloudName = process.env.NEXT_PUBLIC_CLOUDINARY_CLOUD_NAME;
+    const uploadPreset = process.env.NEXT_PUBLIC_CLOUDINARY_PRESET || 'jmr-stock-products';
+
+    if (!cloudName) {
+      throw new Error('❌ CLOUDINARY_CLOUD_NAME no está configurado en variables de entorno');
+    }
+
+    console.log('🌐 Subiendo a Cloudinary:', {
+      cloudName,
+      uploadPreset,
+      fileName: file.name,
+      fileSize: `${(file.size / 1024 / 1024).toFixed(2)}MB`,
+    });
+
     const formData = new FormData();
     formData.append('file', file);
-    formData.append('upload_preset', process.env.NEXT_PUBLIC_CLOUDINARY_PRESET || 'jmr-stock-products');
+    formData.append('upload_preset', uploadPreset);
     formData.append('folder', 'jmr-stock/');
 
     try {
       const response = await fetch(
-        `https://api.cloudinary.com/v1_1/${process.env.NEXT_PUBLIC_CLOUDINARY_CLOUD_NAME}/image/upload`,
+        `https://api.cloudinary.com/v1_1/${cloudName}/image/upload`,
         {
           method: 'POST',
-          body: formData
+          body: formData,
         }
       );
 
+      const data = await response.json();
+
       if (!response.ok) {
-        throw new Error('Error al subir imagen a Cloudinary');
+        console.error('❌ Error de Cloudinary:', data);
+        throw new Error(data.error?.message || 'Error al subir imagen a Cloudinary');
       }
 
-      const data = await response.json();
+      console.log('✅ Imagen subida:', data.secure_url);
       return data.secure_url;
     } catch (error) {
-      console.error('Error al subir imagen:', error);
+      console.error('❌ Error en upload:', error);
       throw error;
     }
   };
@@ -61,7 +78,7 @@ export default function MultipleImageUpload({ value = [], onChange }) {
 
     // Validar tamaño total
     const totalSize = files.reduce((sum, file) => sum + file.size, 0);
-    if (totalSize > 20 * 1024 * 1024) { // 20MB total
+    if (totalSize > 20 * 1024 * 1024) {
       setError('El tamaño total no puede superar 20MB');
       return;
     }
@@ -72,6 +89,7 @@ export default function MultipleImageUpload({ value = [], onChange }) {
 
     try {
       const urls = [];
+      const errores = [];
       
       // Subir imágenes una por una
       for (let i = 0; i < files.length; i++) {
@@ -79,29 +97,46 @@ export default function MultipleImageUpload({ value = [], onChange }) {
 
         // Validar tipo
         if (!file.type.startsWith('image/')) {
-          console.warn(`Archivo ${file.name} no es una imagen, saltando...`);
+          console.warn(`⚠️ ${file.name} no es una imagen, saltando...`);
+          errores.push(`${file.name}: no es una imagen`);
           continue;
         }
 
         // Validar tamaño individual (5MB)
         if (file.size > 5 * 1024 * 1024) {
-          console.warn(`Archivo ${file.name} muy grande, saltando...`);
+          console.warn(`⚠️ ${file.name} muy grande (>5MB), saltando...`);
+          errores.push(`${file.name}: muy grande (>5MB)`);
           continue;
         }
 
-        const url = await subirImagenACloudinary(file);
-        urls.push(url);
-        setUploadProgress(((i + 1) / files.length) * 100);
+        try {
+          const url = await subirImagenACloudinary(file);
+          urls.push(url);
+          setUploadProgress(((i + 1) / files.length) * 100);
+        } catch (err) {
+          console.error(`❌ Error subiendo ${file.name}:`, err);
+          errores.push(`${file.name}: ${err.message}`);
+        }
       }
 
       // Agregar nuevas URLs al array existente
-      const nuevasImagenes = [...imagenes, ...urls];
-      onChange(nuevasImagenes);
+      if (urls.length > 0) {
+        const nuevasImagenes = [...imagenes, ...urls];
+        onChange(nuevasImagenes);
+        console.log(`✅ ${urls.length} imágenes subidas correctamente`);
+      }
 
-      console.log(`✅ ${urls.length} imágenes subidas correctamente`);
+      // Mostrar errores si hubo
+      if (errores.length > 0) {
+        setError(`Algunos archivos fallaron:\n${errores.join('\n')}`);
+      }
+
+      if (urls.length === 0 && errores.length > 0) {
+        throw new Error('No se pudo subir ninguna imagen');
+      }
     } catch (error) {
-      setError('Error al subir algunas imágenes. Intenta de nuevo.');
-      console.error('Error en upload:', error);
+      setError(`Error: ${error.message}`);
+      console.error('❌ Error en upload:', error);
     } finally {
       setUploading(false);
       setUploadProgress(0);
@@ -183,10 +218,20 @@ export default function MultipleImageUpload({ value = [], onChange }) {
         </label>
       </div>
 
-      {/* Mensajes de error */}
+      {/* Mensajes de error con más detalle */}
       {error && (
-        <div className="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-700 text-red-700 dark:text-red-400 px-4 py-3 rounded-lg text-sm">
-          {error}
+        <div className="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-700 rounded-lg p-4">
+          <div className="flex items-start gap-2">
+            <AlertCircle className="w-5 h-5 text-red-600 dark:text-red-400 flex-shrink-0 mt-0.5" />
+            <div className="flex-1">
+              <p className="text-sm font-semibold text-red-700 dark:text-red-400 mb-1">
+                Error al subir imágenes
+              </p>
+              <p className="text-xs text-red-600 dark:text-red-400 whitespace-pre-line">
+                {error}
+              </p>
+            </div>
+          </div>
         </div>
       )}
 
@@ -196,7 +241,6 @@ export default function MultipleImageUpload({ value = [], onChange }) {
           <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-4">
             {imagenes.map((url, index) => (
               <div key={index} className="relative group">
-                {/* Imagen */}
                 <div className="relative w-full h-32 rounded-lg overflow-hidden border-2 border-gray-200 dark:border-gray-700 group-hover:border-blue-400 dark:group-hover:border-blue-500 transition-colors">
                   <img
                     src={url}
@@ -204,7 +248,6 @@ export default function MultipleImageUpload({ value = [], onChange }) {
                     className="w-full h-full object-cover"
                   />
                   
-                  {/* Badge de principal */}
                   {index === 0 && (
                     <div className="absolute top-2 left-2 bg-green-600 text-white text-xs px-2 py-1 rounded font-semibold shadow-lg flex items-center gap-1">
                       <CheckCircle className="w-3 h-3" />
@@ -212,13 +255,11 @@ export default function MultipleImageUpload({ value = [], onChange }) {
                     </div>
                   )}
 
-                  {/* Número */}
                   <div className="absolute bottom-2 left-2 bg-black/70 text-white text-xs px-2 py-1 rounded">
                     {index + 1}
                   </div>
                 </div>
 
-                {/* Botones de acción (aparecen al hover) */}
                 <div className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity rounded-lg flex items-center justify-center gap-2">
                   {index !== 0 && (
                     <button
@@ -243,16 +284,13 @@ export default function MultipleImageUpload({ value = [], onChange }) {
             ))}
           </div>
 
-          {/* Ayuda */}
           <div className="mt-4 text-xs text-gray-500 dark:text-gray-400 space-y-1">
             <p>• La primera imagen es la que se muestra en el listado de productos</p>
             <p>• Click en una imagen y luego en el ícono <ImageIcon className="w-3 h-3 inline" /> para establecerla como principal</p>
-            <p>• Las imágenes se mostrarán en galería en el e-commerce</p>
           </div>
         </div>
       )}
 
-      {/* Mensaje si no hay imágenes */}
       {imagenes.length === 0 && !uploading && (
         <div className="text-center py-8 text-gray-500 dark:text-gray-400">
           <ImageIcon className="w-16 h-16 mx-auto mb-3 text-gray-300 dark:text-gray-600" />

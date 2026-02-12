@@ -1,3 +1,5 @@
+// app/productos/editar/[id]/page.js - VERSIÓN CORREGIDA
+
 'use client';
 
 import { useEffect, useState } from 'react';
@@ -20,8 +22,7 @@ export default function EditarProductoPage({ params }) {
     precio: '',
     stock: '',
     stockMinimo: '',
-    imagen: '',
-    imagenes: [], // ⭐ NUEVO: Array de URLs
+    imagenes: [], // ⭐ CORREGIDO: Solo usamos imagenes (array)
     categoriaId: '',
     proveedorId: '',
   });
@@ -48,6 +49,17 @@ export default function EditarProductoPage({ params }) {
       if (!response.ok) throw new Error('Producto no encontrado');
       const data = await response.json();
       
+      // ⭐ LÓGICA CORREGIDA: Priorizar imagenes (array), fallback a imagen
+      let imagenesArray = [];
+      
+      if (data.imagenes && Array.isArray(data.imagenes) && data.imagenes.length > 0) {
+        // Si tiene array de imágenes, usarlo
+        imagenesArray = data.imagenes;
+      } else if (data.imagen) {
+        // Si solo tiene imagen principal (legacy), convertirla a array
+        imagenesArray = [data.imagen];
+      }
+      
       setFormData({
         nombre: data.nombre,
         descripcion: data.descripcion || '',
@@ -55,8 +67,7 @@ export default function EditarProductoPage({ params }) {
         precio: data.precio.toString(),
         stock: data.stock.toString(),
         stockMinimo: data.stockMinimo.toString(),
-        imagen: data.imagen || '',
-        imagenes: data.imagenes || [], // ⭐ Cargar imágenes existentes
+        imagenes: imagenesArray, // ⭐ Solo imagenes
         categoriaId: data.categoriaId.toString(),
         proveedorId: data.proveedorId.toString(),
       });
@@ -93,11 +104,10 @@ export default function EditarProductoPage({ params }) {
     setSaving(true);
 
     try {
-      // Preparar datos
       const dataToSend = {
         ...formData,
-        // Actualizar imagen principal si hay cambios
-        imagen: formData.imagenes[0] || formData.imagen || null,
+        // ⭐ IMPORTANTE: Sincronizar imagen principal con el primer elemento del array
+        imagen: formData.imagenes[0] || null,
         imagenes: formData.imagenes || [],
       };
 

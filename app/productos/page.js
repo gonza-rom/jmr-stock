@@ -578,8 +578,23 @@ useEffect(() => {
                       )}
                       <td className="px-6 py-4 whitespace-nowrap">
                         <div className="relative w-16 h-16 rounded-lg overflow-hidden bg-gray-100 dark:bg-gray-700">
-                          {producto.imagen ? (
-                            <Image src={producto.imagen} alt={producto.nombre} fill className="object-cover" sizes="64px" />
+                          {/* ⭐ LÓGICA CORREGIDA: Priorizar imagenes[0], fallback a imagen */}
+                          {producto.imagenes && producto.imagenes.length > 0 ? (
+                            <Image 
+                              src={producto.imagenes[0]} 
+                              alt={producto.nombre} 
+                              fill 
+                              className="object-cover" 
+                              sizes="64px" 
+                            />
+                          ) : producto.imagen ? (
+                            <Image 
+                              src={producto.imagen} 
+                              alt={producto.nombre} 
+                              fill 
+                              className="object-cover" 
+                              sizes="64px" 
+                            />
                           ) : (
                             <div className="w-full h-full flex items-center justify-center">
                               <Package className="w-8 h-8 text-gray-400" />

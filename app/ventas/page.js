@@ -2,7 +2,7 @@
 
 import { useEffect, useState, useCallback } from 'react';
 import { Search, Plus, Minus, Trash2, ShoppingCart, DollarSign, User, CreditCard, PlusCircle, ChevronLeft, ChevronRight, Edit, AlertTriangle, X, Save } from 'lucide-react';
-import Image from 'next/image';
+import Image from 'next/image';import PageWrapper from '@/components/PageWrapper';
 
 const PAGE_SIZE = 12;
 
@@ -162,6 +162,7 @@ export default function VentasPage() {
   };
 
   return (
+    <PageWrapper>
     <div className="space-y-4 sm:space-y-6 pb-8">
       <h1 className="text-2xl sm:text-3xl font-bold text-gray-800 dark:text-gray-100 flex items-center gap-2">
         <ShoppingCart className="w-6 h-6 sm:w-8 sm:h-8" /> Punto de Venta
@@ -470,5 +471,6 @@ export default function VentasPage() {
         </div>
       )}
     </div>
+    </PageWrapper>
   );
 }

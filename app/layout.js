@@ -16,11 +16,11 @@ export default function RootLayout({ children }) {
           {/* 
             lg: empuja el contenido a la derecha del sidebar colapsado (w-16 = 64px)
             mobile: agrega padding-top para la topbar fija (h-14 = 56px)
+            
+            ✅ ELIMINADO padding px-4 py-6 para que /login no tenga scroll
           */}
           <main className="lg:pl-16 pt-14 lg:pt-0 min-h-screen">
-            <div className="max-w-screen-2xl mx-auto px-4 py-6">
-              {children}
-            </div>
+            {children}
           </main>
         </AuthProvider>
       </body>

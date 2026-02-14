@@ -33,7 +33,7 @@ export default function LoginPage() {
     <div className="min-h-screen bg-gradient-to-br from-green-50 to-green-100 dark:from-gray-900 dark:to-gray-800 flex items-center justify-center p-4">
       <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-2xl w-full max-w-md p-8">
         {/* Logo y Título */}
-        <div className="text-center mb-8">
+        <div className="text-center mb-6">
           <div className="relative w-20 h-20 mx-auto mb-4 bg-white rounded-xl p-2 shadow-md">
             <Image
               src="/logo-jmr.png"
@@ -119,17 +119,6 @@ export default function LoginPage() {
             )}
           </button>
         </form>
-
-        {/* Información de prueba */}
-        {/* <div className="mt-8 p-4 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-700 rounded-lg">
-          <p className="text-sm font-semibold text-blue-800 dark:text-blue-300 mb-2">
-            Usuarios de prueba:
-          </p>
-          <div className="space-y-1 text-xs text-blue-700 dark:text-blue-400">
-            <p><strong>Admin:</strong> admin@jmr.com / admin123</p>
-            <p><strong>Empleado:</strong> empleado@jmr.com / empleado123</p>
-          </div>
-        </div> */}
       </div>
     </div>
   );

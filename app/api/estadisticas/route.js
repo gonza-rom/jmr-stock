@@ -16,7 +16,7 @@ export async function GET(request) {
       };
     }
 
-    // Obtener todas las ventas del período
+    // ✅ Obtener todas las ventas del período con sus items
     const ventas = await prisma.venta.findMany({
       where,
       include: {
@@ -32,14 +32,44 @@ export async function GET(request) {
       }
     });
 
-    // Calcular estadísticas
-    const totalVentas = ventas.length;
-    const ingresoTotal = ventas.reduce((sum, venta) => sum + venta.total, 0);
+    // ✅ Obtener todos los movimientos cancelados del período
+    const movimientosCancelados = await prisma.movimiento.findMany({
+      where: {
+        cancelado: true,
+        tipo: 'SALIDA',
+        motivo: {
+          startsWith: 'Venta #'
+        },
+        ...where
+      },
+      select: {
+        motivo: true,
+        productoId: true,
+        cantidad: true
+      }
+    });
+
+    // ✅ Crear un Set de IDs de ventas canceladas
+    const ventasCanceladasIds = new Set();
+    movimientosCancelados.forEach(mov => {
+      // Extraer el ID de la venta del motivo "Venta #123"
+      const match = mov.motivo?.match(/Venta #(\d+)/);
+      if (match) {
+        ventasCanceladasIds.add(parseInt(match[1]));
+      }
+    });
+
+    // ✅ FILTRAR ventas que NO están canceladas
+    const ventasActivas = ventas.filter(venta => !ventasCanceladasIds.has(venta.id));
+
+    // Calcular estadísticas SOLO con ventas activas
+    const totalVentas = ventasActivas.length;
+    const ingresoTotal = ventasActivas.reduce((sum, venta) => sum + venta.total, 0);
     const promedioVenta = totalVentas > 0 ? ingresoTotal / totalVentas : 0;
 
-    // Productos más vendidos
+    // Productos más vendidos (solo ventas activas)
     const productosVendidos = {};
-    ventas.forEach(venta => {
+    ventasActivas.forEach(venta => {
       venta.items.forEach(item => {
         if (!productosVendidos[item.productoId]) {
           productosVendidos[item.productoId] = {
@@ -57,9 +87,9 @@ export async function GET(request) {
       .sort((a, b) => b.cantidadVendida - a.cantidadVendida)
       .slice(0, 10);
 
-    // Ventas por categoría
+    // Ventas por categoría (solo ventas activas)
     const ventasPorCategoria = {};
-    ventas.forEach(venta => {
+    ventasActivas.forEach(venta => {
       venta.items.forEach(item => {
         const categoria = item.producto.categoria.nombre;
         if (!ventasPorCategoria[categoria]) {
@@ -74,9 +104,9 @@ export async function GET(request) {
       });
     });
 
-    // Ventas por método de pago
+    // Ventas por método de pago (solo ventas activas)
     const ventasPorMetodo = {};
-    ventas.forEach(venta => {
+    ventasActivas.forEach(venta => {
       if (!ventasPorMetodo[venta.metodoPago]) {
         ventasPorMetodo[venta.metodoPago] = {
           metodo: venta.metodoPago,
@@ -88,9 +118,9 @@ export async function GET(request) {
       ventasPorMetodo[venta.metodoPago].total += venta.total;
     });
 
-    // Ventas por día (últimos 30 días)
+    // Ventas por día (solo ventas activas)
     const ventasPorDia = {};
-    ventas.forEach(venta => {
+    ventasActivas.forEach(venta => {
       const fecha = new Date(venta.createdAt).toISOString().split('T')[0];
       if (!ventasPorDia[fecha]) {
         ventasPorDia[fecha] = {
@@ -106,9 +136,9 @@ export async function GET(request) {
     const ventasPorDiaArray = Object.values(ventasPorDia)
       .sort((a, b) => new Date(a.fecha) - new Date(b.fecha));
 
-    // Ventas por mes (últimos 12 meses)
+    // Ventas por mes (solo ventas activas)
     const ventasPorMes = {};
-    ventas.forEach(venta => {
+    ventasActivas.forEach(venta => {
       const fecha = new Date(venta.createdAt);
       const mesAnio = `${fecha.getFullYear()}-${String(fecha.getMonth() + 1).padStart(2, '0')}`;
       if (!ventasPorMes[mesAnio]) {

@@ -8,6 +8,7 @@ import {
   DollarSign, Barcode, History, Copy, CheckSquare, ChevronLeft, ChevronRight,
   ChevronsLeft, ChevronsRight
 } from 'lucide-react';
+import PageWrapper from '@/components/PageWrapper';
 
 const PAGE_SIZE = 20;
 
@@ -217,6 +218,7 @@ export default function ProductosPage() {
   );
 
   return (
+    <PageWrapper>
     <div className="space-y-6">
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
@@ -588,5 +590,6 @@ export default function ProductosPage() {
         </div>
       )}
     </div>
+    </PageWrapper>
   );
 }

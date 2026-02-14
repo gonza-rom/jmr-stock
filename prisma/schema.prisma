@@ -55,7 +55,7 @@ model Producto {
   stock           Int                @default(0)
   stockMinimo     Int                @default(5)
   imagen          String?
-  imagenes        String[]           // Array de URLs de imágenes para galería
+  imagenes        String[]
   codigoBarras    String?            @unique
   categoriaId     Int
   proveedorId     Int
@@ -69,15 +69,19 @@ model Producto {
 }
 
 model Movimiento {
-  id          Int      @id @default(autoincrement())
-  productoId  Int
-  tipo        String
-  cantidad    Int
-  motivo      String?
-  usuarioId   Int?
-  createdAt   DateTime @default(now())
-  producto    Producto @relation(fields: [productoId], references: [id])
-  usuario     Usuario? @relation(fields: [usuarioId], references: [id])
+  id                Int      @id @default(autoincrement())
+  productoId        Int
+  tipo              String
+  cantidad          Int
+  motivo            String?
+  usuarioId         Int?
+  // ── Cancelación ──
+  cancelado         Boolean  @default(false)
+  motivoCancelacion String?
+  canceladoAt       DateTime?
+  createdAt         DateTime @default(now())
+  producto          Producto @relation(fields: [productoId], references: [id])
+  usuario           Usuario? @relation(fields: [usuarioId], references: [id])
 }
 
 model Venta {

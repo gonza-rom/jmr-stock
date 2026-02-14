@@ -22,27 +22,28 @@ export default function Home() {
 
   const fetchStats = async () => {
     try {
-      const [productosRes, categoriasRes, proveedoresRes, movimientosRes] = await Promise.all([
-        fetch('/api/productos'),
+      // ✅ OPTIMIZADO: 3 fetches livianos en vez de 4 fetches pesados
+      // Antes: /api/productos (todos) + /api/categorias + /api/proveedores + /api/movimientos
+      // Ahora: /api/productos/stats (solo conteos + stock bajo) + /api/categorias + /api/movimientos
+      const [productosStatsRes, categoriasRes, proveedoresRes, movimientosRes] = await Promise.all([
+        fetch('/api/productos/stats'),   // Solo conteos y stock bajo — NO trae todos los productos
         fetch('/api/categorias'),
         fetch('/api/proveedores'),
         fetch('/api/movimientos')
       ]);
 
-      const [productos, categorias, proveedores, movimientos] = await Promise.all([
-        productosRes.json(),
+      const [productosStats, categorias, proveedores, movimientos] = await Promise.all([
+        productosStatsRes.json(),
         categoriasRes.json(),
         proveedoresRes.json(),
         movimientosRes.json()
       ]);
 
-      const productosStockBajo = productos.filter(p => p.stock <= p.stockMinimo);
-
       setStats({
-        totalProductos: productos.length,
+        totalProductos: productosStats.totalProductos ?? 0,
         totalCategorias: categorias.length,
         totalProveedores: proveedores.length,
-        productosStockBajo: productosStockBajo,
+        productosStockBajo: productosStats.productosStockBajo ?? [],
         movimientosRecientes: movimientos.slice(0, 5)
       });
     } catch (error) {

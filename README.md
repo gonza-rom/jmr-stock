@@ -29,24 +29,25 @@ Incluye:
 
 # 🗂 Estructura del Proyecto
 
+```bash
 jmr-ecommerce/
 ├── app/
-│ ├── page.js # Dashboard interno
-│ ├── productos/ # ABM de productos
-│ ├── ventas/ # Punto de venta
-│ ├── movimientos/ # Movimientos de stock
-│ ├── usuarios/ # Gestión de usuarios
-│ ├── categorias/ # Gestión de categorías
-│ ├── proveedores/ # Gestión de proveedores
-│ ├── public/ # Página pública para clientes
-│ └── api/ # API Routes
+│   ├── page.js                  # Dashboard interno
+│   ├── productos/               # ABM de productos
+│   ├── ventas/                  # Punto de venta
+│   ├── movimientos/             # Movimientos de stock
+│   ├── usuarios/                # Gestión de usuarios
+│   ├── categorias/              # Gestión de categorías
+│   ├── proveedores/             # Gestión de proveedores
+│   ├── public/                  # Página pública para clientes
+│   └── api/                     # API Routes
 ├── prisma/
-│ └── schema.prisma
+│   └── schema.prisma
 ├── contexts/
-│ └── AuthContext.js
+│   └── AuthContext.js
 └── lib/
-└── prisma.js
-
+    └── prisma.js
+```
 
 ---
 

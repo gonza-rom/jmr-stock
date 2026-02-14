@@ -120,13 +120,13 @@ export default function MovimientosPage() {
 
   return (
     <div className="space-y-6">
-      <div className="flex justify-between items-center">
-        <h1 className="text-3xl font-bold text-gray-800 dark:text-gray-100 flex items-center gap-2">
-          <ShoppingCart className="w-8 h-8" /> Movimientos de Stock
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-2">
+        <h1 className="text-2xl font-bold text-gray-800 dark:text-gray-100 flex items-center gap-2">
+          <ShoppingCart className="w-7 h-7" /> Movimientos de Stock
         </h1>
         <button onClick={() => setShowForm(!showForm)}
-          className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg flex items-center gap-2 transition-colors">
-          <Plus className="w-5 h-5" /> Registrar Movimiento
+          className="bg-blue-600 hover:bg-blue-700 text-white px-3 py-2 rounded-lg flex items-center gap-2 text-sm transition-colors flex-shrink-0">
+          <Plus className="w-4 h-4" /> Registrar Movimiento
         </button>
       </div>
 

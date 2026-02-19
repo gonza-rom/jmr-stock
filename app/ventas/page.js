@@ -1,8 +1,9 @@
 'use client';
 
 import { useEffect, useState, useCallback } from 'react';
-import { Search, Plus, Minus, Trash2, ShoppingCart, DollarSign, User, CreditCard, PlusCircle, ChevronLeft, ChevronRight, Edit, AlertTriangle, X, Save } from 'lucide-react';
-import Image from 'next/image';import PageWrapper from '@/components/PageWrapper';
+import { Search, Plus, Minus, Trash2, ShoppingCart, DollarSign, User, CreditCard, PlusCircle, ChevronLeft, ChevronRight, Edit, AlertTriangle, X, Save, Calendar } from 'lucide-react';
+import Image from 'next/image';
+import PageWrapper from '@/components/PageWrapper';
 
 const PAGE_SIZE = 12;
 
@@ -27,6 +28,7 @@ export default function VentasPage() {
   const [metodoPago, setMetodoPago] = useState('EFECTIVO');
   const [clienteNombre, setClienteNombre] = useState('');
   const [clienteDni, setClienteDni] = useState('');
+  const [fechaVenta, setFechaVenta] = useState(new Date().toISOString().split('T')[0]); // ✅ NUEVO
   const [procesando, setProcesando] = useState(false);
   const [mostrarModalProducto, setMostrarModalProducto] = useState(false);
   const [categorias, setCategorias] = useState([]);
@@ -34,7 +36,7 @@ export default function VentasPage() {
   const [nuevoProducto, setNuevoProducto] = useState({ nombre: '', codigoProducto: '', precio: '', categoriaId: '', proveedorId: '', stock: '1' });
 
   // ── Modal editar producto ──
-  const [modalEditar, setModalEditar] = useState(null);   // producto a editar
+  const [modalEditar, setModalEditar] = useState(null);
   const [editForm, setEditForm] = useState({});
   const [guardandoEdicion, setGuardandoEdicion] = useState(false);
 
@@ -97,12 +99,22 @@ export default function VentasPage() {
       const res = await fetch('/api/ventas', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ items: carrito, metodoPago, clienteNombre: clienteNombre || null, clienteDni: clienteDni || null }),
+        body: JSON.stringify({ 
+          items: carrito, 
+          metodoPago, 
+          clienteNombre: clienteNombre || null, 
+          clienteDni: clienteDni || null,
+          fecha: fechaVenta // ✅ NUEVO: Enviar fecha
+        }),
       });
       if (!res.ok) { const e = await res.json(); throw new Error(e.error); }
       const venta = await res.json();
-      alert(`Venta #${venta.id} realizada!\nTotal: $${venta.total.toFixed(2)}`);
-      setCarrito([]); setClienteNombre(''); setClienteDni(''); setBusqueda('');
+      alert(`Venta #${venta.id} realizada!\nTotal: $${venta.total.toFixed(2)}\nFecha: ${new Date(venta.createdAt).toLocaleDateString('es-AR')}`);
+      setCarrito([]); 
+      setClienteNombre(''); 
+      setClienteDni(''); 
+      setFechaVenta(new Date().toISOString().split('T')[0]); // Reset fecha
+      setBusqueda('');
       fetchProductos(paginaActual, busquedaDebounced);
     } catch (err) { alert(err.message || 'Error al procesar la venta'); }
     finally { setProcesando(false); }
@@ -110,13 +122,13 @@ export default function VentasPage() {
 
   // ── Abrir modal edición ──
   const abrirEdicion = (e, producto) => {
-    e.stopPropagation(); // no agregar al carrito
+    e.stopPropagation();
     setModalEditar(producto);
     setEditForm({
-      nombre:         producto.nombre,
+      nombre: producto.nombre,
       codigoProducto: producto.codigoProducto || '',
-      precio:         producto.precio.toString(),
-      stock:          producto.stock.toString(),
+      precio: producto.precio.toString(),
+      stock: producto.stock.toString(),
     });
   };
 
@@ -129,10 +141,10 @@ export default function VentasPage() {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          nombre:         editForm.nombre.trim(),
+          nombre: editForm.nombre.trim(),
           codigoProducto: editForm.codigoProducto.trim() || null,
-          precio:         parseFloat(editForm.precio),
-          stock:          parseInt(editForm.stock) || 0,
+          precio: parseFloat(editForm.precio),
+          stock: parseInt(editForm.stock) || 0,
         }),
       });
       if (!res.ok) { const e = await res.json(); throw new Error(e.error); }
@@ -231,7 +243,6 @@ export default function VentasPage() {
                         : 'hover:shadow-lg hover:border-jmr-primary dark:hover:border-jmr-accent cursor-pointer'
                     }`}>
 
-                    {/* Botón editar — aparece al hacer hover */}
                     <button
                       onClick={(e) => abrirEdicion(e, producto)}
                       className="absolute top-2 right-2 z-10 bg-white dark:bg-gray-700 border border-gray-200 dark:border-gray-600 p-1 rounded-md opacity-0 group-hover:opacity-100 transition-opacity hover:bg-blue-50 dark:hover:bg-blue-900/30 hover:border-blue-400"
@@ -248,7 +259,6 @@ export default function VentasPage() {
                           <ShoppingCart className="w-8 h-8 sm:w-12 sm:h-12 text-gray-400" />
                         </div>
                       )}
-                      {/* Badge sin stock */}
                       {producto.stock === 0 && (
                         <div className="absolute inset-0 bg-black/50 flex items-center justify-center">
                           <span className="text-white text-xs font-bold bg-red-600 px-2 py-1 rounded">SIN STOCK</span>
@@ -325,6 +335,20 @@ export default function VentasPage() {
               </select>
             </div>
 
+            {/* ✅ NUEVO: Campo de fecha */}
+            <div className="space-y-2 mb-3">
+              <label className="block text-xs sm:text-sm font-medium text-gray-700 dark:text-gray-300">
+                <Calendar className="w-3 h-3 inline mr-1" />Fecha de Venta
+              </label>
+              <input 
+                type="date" 
+                value={fechaVenta} 
+                onChange={(e) => setFechaVenta(e.target.value)}
+                max={new Date().toISOString().split('T')[0]}
+                className="w-full px-2 sm:px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md focus:outline-none focus:ring-2 focus:ring-jmr-primary dark:bg-gray-700 dark:text-gray-100 text-sm" 
+              />
+            </div>
+
             <div className="space-y-2 mb-3">
               <label className="block text-xs sm:text-sm font-medium text-gray-700 dark:text-gray-300">
                 <User className="w-3 h-3 inline mr-1" />Cliente (opcional)
@@ -344,7 +368,7 @@ export default function VentasPage() {
         </div>
       </div>
 
-      {/* ── Modal editar producto ── */}
+      {/* Modal editar producto */}
       {modalEditar && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
           <div className="bg-white dark:bg-gray-800 rounded-lg shadow-xl max-w-md w-full p-6">

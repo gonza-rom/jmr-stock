@@ -75,7 +75,7 @@ export async function GET(request) {
 export async function POST(request) {
   try {
     const body = await request.json();
-    const { items, metodoPago, clienteNombre, clienteDni, observaciones } = body;
+    const { items, metodoPago, clienteNombre, clienteDni, observaciones, fecha } = body;
 
     if (!items || items.length === 0) {
       return NextResponse.json(
@@ -127,6 +127,14 @@ export async function POST(request) {
     // Calcular total
     const total = items.reduce((sum, item) => sum + (item.precioUnit * item.cantidad), 0);
 
+    // Preparar fecha
+    let fechaVenta = new Date();
+    if (fecha) {
+      // Si se proporciona fecha, usarla
+      const fechaParts = fecha.split('-');
+      fechaVenta = new Date(parseInt(fechaParts[0]), parseInt(fechaParts[1]) - 1, parseInt(fechaParts[2]), 12, 0, 0);
+    }
+
     // Crear venta con items y actualizar stock en una transacción
     const venta = await prisma.$transaction(async (tx) => {
       // Crear la venta
@@ -138,6 +146,7 @@ export async function POST(request) {
           clienteDni,
           observaciones,
           usuarioId: user?.id || null,
+          createdAt: fechaVenta,
           items: {
             create: items.map(item => ({
               productoId: item.productoId,
@@ -174,14 +183,16 @@ export async function POST(request) {
           }
         });
 
-        // Crear movimiento de salida por venta
+        // ✅ CORREGIDO: Crear movimiento de tipo VENTA con metodoPago
         await tx.movimiento.create({
           data: {
             productoId: item.productoId,
-            tipo: 'SALIDA',
+            tipo: 'VENTA',
             cantidad: item.cantidad,
             motivo: `Venta #${nuevaVenta.id}`,
+            metodoPago: metodoPago, // ✅ Guardar método de pago
             usuarioId: user?.id || null,
+            createdAt: fechaVenta,
           }
         });
       }

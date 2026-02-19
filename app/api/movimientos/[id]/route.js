@@ -1,5 +1,5 @@
 // app/api/movimientos/[id]/route.js
-// Cancelar un movimiento (solo ADMINISTRADOR) y reintegrar stock
+// Cancelar y editar movimientos (solo ADMINISTRADOR)
 
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
@@ -19,7 +19,117 @@ async function getUserFromToken() {
   }
 }
 
-// PATCH /api/movimientos/[id] — cancelar movimiento
+// ✅ PUT - Editar movimiento
+export async function PUT(request, context) {
+  try {
+    const user = await getUserFromToken();
+
+    // Solo administrador puede editar
+    if (!user || user.rol !== 'ADMINISTRADOR') {
+      return NextResponse.json(
+        { error: 'Solo un administrador puede editar movimientos' },
+        { status: 403 }
+      );
+    }
+
+    const params = await context.params;
+    const id = parseInt(params.id);
+    if (isNaN(id)) return NextResponse.json({ error: 'ID inválido' }, { status: 400 });
+
+    const body = await request.json();
+    const { cantidad, motivo, fecha, usuarioId } = body;
+
+    // Obtener el movimiento original
+    const movimientoOriginal = await prisma.movimiento.findUnique({
+      where: { id },
+      include: { producto: true }
+    });
+
+    if (!movimientoOriginal) {
+      return NextResponse.json({ error: 'Movimiento no encontrado' }, { status: 404 });
+    }
+
+    if (movimientoOriginal.cancelado) {
+      return NextResponse.json({ error: 'No se puede editar un movimiento cancelado' }, { status: 400 });
+    }
+
+    // Si la cantidad cambió, necesitamos ajustar el stock
+    const cantidadNueva = parseInt(cantidad);
+    const cantidadOriginal = movimientoOriginal.cantidad;
+    const diferencia = cantidadNueva - cantidadOriginal;
+
+    let nuevoStock = movimientoOriginal.producto.stock;
+
+    if (diferencia !== 0) {
+      // Ajustar stock según el tipo de movimiento
+      if (movimientoOriginal.tipo === 'ENTRADA') {
+        nuevoStock += diferencia; // Si aumenta cantidad, aumenta stock
+      } else { // SALIDA o VENTA
+        nuevoStock -= diferencia; // Si aumenta cantidad, disminuye stock
+      }
+
+      // Validar que el stock no sea negativo
+      if (nuevoStock < 0) {
+        return NextResponse.json(
+          { error: `Stock insuficiente. El stock quedaría en ${nuevoStock}` },
+          { status: 400 }
+        );
+      }
+    }
+
+    // Preparar fecha si cambió
+    let fechaActualizada = movimientoOriginal.createdAt;
+    if (fecha) {
+      const fechaParts = fecha.split('-');
+      fechaActualizada = new Date(parseInt(fechaParts[0]), parseInt(fechaParts[1]) - 1, parseInt(fechaParts[2]), 12, 0, 0);
+    }
+
+    // Actualizar en transacción
+    const movimientoActualizado = await prisma.$transaction(async (tx) => {
+      // Actualizar el movimiento
+      const movActualizado = await tx.movimiento.update({
+        where: { id },
+        data: {
+          cantidad: cantidadNueva,
+          motivo: motivo !== undefined ? motivo : movimientoOriginal.motivo,
+          createdAt: fechaActualizada,
+          usuarioId: usuarioId ? parseInt(usuarioId) : movimientoOriginal.usuarioId,
+        },
+        include: {
+          producto: {
+            include: {
+              categoria: true
+            }
+          },
+          usuario: {
+            select: {
+              id: true,
+              nombre: true,
+              email: true
+            }
+          }
+        }
+      });
+
+      // Actualizar stock si cambió la cantidad
+      if (diferencia !== 0) {
+        await tx.producto.update({
+          where: { id: movimientoOriginal.productoId },
+          data: { stock: nuevoStock }
+        });
+      }
+
+      return movActualizado;
+    });
+
+    return NextResponse.json(movimientoActualizado);
+  } catch (error) {
+    console.error('Error al editar movimiento:', error);
+    return NextResponse.json({ error: 'Error al editar movimiento' }, { status: 500 });
+  }
+}
+
+// PATCH - Cancelar movimiento
 export async function PATCH(request, context) {
   try {
     const user = await getUserFromToken();
@@ -54,7 +164,6 @@ export async function PATCH(request, context) {
     }
 
     // Calcular nuevo stock: invertir la operación original
-    // Si fue ENTRADA (+cantidad) → restar; si fue SALIDA (-cantidad) → sumar
     const delta = movimiento.tipo === 'ENTRADA' ? -movimiento.cantidad : movimiento.cantidad;
     const nuevoStock = movimiento.producto.stock + delta;
 
@@ -70,18 +179,18 @@ export async function PATCH(request, context) {
       prisma.movimiento.update({
         where: { id },
         data: {
-          cancelado:         true,
+          cancelado: true,
           motivoCancelacion,
-          canceladoAt:       new Date(),
+          canceladoAt: new Date(),
         },
         include: {
           producto: { include: { categoria: true } },
-          usuario:  { select: { id: true, nombre: true, email: true } },
+          usuario: { select: { id: true, nombre: true, email: true } },
         },
       }),
       prisma.producto.update({
         where: { id: movimiento.productoId },
-        data:  { stock: nuevoStock },
+        data: { stock: nuevoStock },
       }),
     ]);
 

@@ -5,7 +5,6 @@ import jwt from 'jsonwebtoken';
 
 const JWT_SECRET = process.env.JWT_SECRET || 'tu-secreto-super-seguro-cambialo-en-produccion';
 
-// Función para obtener usuario del token
 async function getUserFromToken() {
   try {
     const cookieStore = await cookies();
@@ -16,6 +15,20 @@ async function getUserFromToken() {
   } catch (error) {
     return null;
   }
+}
+
+// Construye una fecha combinando fecha (YYYY-MM-DD) + hora opcional (HH:mm)
+// Si no hay hora manual, usa la hora actual del servidor
+function buildFecha(fecha, hora) {
+  if (!fecha) return new Date();
+  const [y, m, d] = fecha.split('-').map(Number);
+  if (hora) {
+    const [hh, mm] = hora.split(':').map(Number);
+    return new Date(y, m - 1, d, hh, mm, 0);
+  }
+  // Sin hora manual → hora actual del servidor
+  const now = new Date();
+  return new Date(y, m - 1, d, now.getHours(), now.getMinutes(), now.getSeconds());
 }
 
 // GET - Obtener todos los movimientos
@@ -34,6 +47,14 @@ export async function GET() {
             nombre: true,
             email: true
           }
+        },
+        // ✅ Incluir la venta relacionada para mostrar el precio
+        venta: {
+          select: {
+            id: true,
+            total: true,
+            metodoPago: true
+          }
         }
       },
       orderBy: {
@@ -50,11 +71,11 @@ export async function GET() {
   }
 }
 
-// POST - Registrar nuevo movimiento (incluyendo ventas)
+// POST - Registrar nuevo movimiento
 export async function POST(request) {
   try {
     const body = await request.json();
-    const { productoId, tipo, cantidad, motivo, fecha, metodoPago, usuarioIdSeleccionado } = body;
+    const { productoId, tipo, cantidad, motivo, fecha, hora, metodoPago, usuarioIdSeleccionado } = body;
 
     if (!productoId || !tipo || !cantidad) {
       return NextResponse.json(
@@ -70,7 +91,6 @@ export async function POST(request) {
       );
     }
 
-    // Validar método de pago si es VENTA
     if (tipo === 'VENTA' && !metodoPago) {
       return NextResponse.json(
         { error: 'El método de pago es requerido para ventas' },
@@ -86,30 +106,21 @@ export async function POST(request) {
       );
     }
 
-    // Obtener usuario autenticado
     const user = await getUserFromToken();
-
-    // ✅ NUEVO: Determinar qué usuario usar
-    // Si se especificó usuarioIdSeleccionado, usar ese; sino usar el del token
     const usuarioFinal = usuarioIdSeleccionado ? parseInt(usuarioIdSeleccionado) : (user?.id || null);
 
-    // Obtener el producto actual
     const producto = await prisma.producto.findUnique({
       where: { id: parseInt(productoId) }
     });
 
     if (!producto) {
-      return NextResponse.json(
-        { error: 'Producto no encontrado' },
-        { status: 404 }
-      );
+      return NextResponse.json({ error: 'Producto no encontrado' }, { status: 404 });
     }
 
-    // Calcular nuevo stock
     let nuevoStock = producto.stock;
     if (tipo === 'ENTRADA') {
       nuevoStock += cantidadNum;
-    } else { // SALIDA o VENTA
+    } else {
       nuevoStock -= cantidadNum;
       if (nuevoStock < 0) {
         return NextResponse.json(
@@ -119,16 +130,10 @@ export async function POST(request) {
       }
     }
 
-    // Preparar fecha
-    let fechaCreacion = new Date();
-    if (fecha) {
-      const fechaParts = fecha.split('-');
-      fechaCreacion = new Date(parseInt(fechaParts[0]), parseInt(fechaParts[1]) - 1, parseInt(fechaParts[2]), 12, 0, 0);
-    }
+    // ✅ Usar hora real o manual
+    const fechaCreacion = buildFecha(fecha, hora);
 
-    // Crear movimiento y actualizar stock en una transacción
     const resultado = await prisma.$transaction(async (tx) => {
-      // Si es VENTA, crear también el registro de venta
       let ventaId = null;
       if (tipo === 'VENTA') {
         const venta = await tx.venta.create({
@@ -151,34 +156,23 @@ export async function POST(request) {
         ventaId = venta.id;
       }
 
-      // Crear movimiento
       const movimiento = await tx.movimiento.create({
         data: {
           productoId: parseInt(productoId),
           tipo,
           cantidad: cantidadNum,
           motivo: tipo === 'VENTA' ? (motivo || `Venta #${ventaId}`) : motivo,
-          metodoPago: tipo === 'VENTA' ? metodoPago : null, // ✅ Guardar método de pago
+          ventaId: ventaId,
           usuarioId: usuarioFinal,
           createdAt: fechaCreacion,
         },
         include: {
-          producto: {
-            include: {
-              categoria: true
-            }
-          },
-          usuario: {
-            select: {
-              id: true,
-              nombre: true,
-              email: true
-            }
-          }
+          producto: { include: { categoria: true } },
+          usuario: { select: { id: true, nombre: true, email: true } },
+          venta: { select: { id: true, total: true, metodoPago: true } }
         }
       });
 
-      // Actualizar stock
       await tx.producto.update({
         where: { id: parseInt(productoId) },
         data: { stock: nuevoStock }
@@ -197,12 +191,11 @@ export async function POST(request) {
   }
 }
 
-// ✅ NUEVO: PUT - Editar movimiento existente
+// PUT - Editar movimiento existente (solo admin)
 export async function PUT(request) {
   try {
     const user = await getUserFromToken();
 
-    // Solo administrador puede editar
     if (!user || user.rol !== 'ADMINISTRADOR') {
       return NextResponse.json(
         { error: 'Solo un administrador puede editar movimientos' },
@@ -211,26 +204,19 @@ export async function PUT(request) {
     }
 
     const body = await request.json();
-    const { id, cantidad, motivo, fecha, usuarioId } = body;
+    const { id, cantidad, motivo, fecha, hora, usuarioId } = body;
 
     if (!id) {
-      return NextResponse.json(
-        { error: 'ID del movimiento es requerido' },
-        { status: 400 }
-      );
+      return NextResponse.json({ error: 'ID del movimiento es requerido' }, { status: 400 });
     }
 
-    // Obtener el movimiento original
     const movimientoOriginal = await prisma.movimiento.findUnique({
       where: { id: parseInt(id) },
       include: { producto: true }
     });
 
     if (!movimientoOriginal) {
-      return NextResponse.json(
-        { error: 'Movimiento no encontrado' },
-        { status: 404 }
-      );
+      return NextResponse.json({ error: 'Movimiento no encontrado' }, { status: 404 });
     }
 
     if (movimientoOriginal.cancelado) {
@@ -240,22 +226,17 @@ export async function PUT(request) {
       );
     }
 
-    // Si la cantidad cambió, necesitamos ajustar el stock
     const cantidadNueva = parseInt(cantidad);
     const cantidadOriginal = movimientoOriginal.cantidad;
     const diferencia = cantidadNueva - cantidadOriginal;
 
     let nuevoStock = movimientoOriginal.producto.stock;
-
     if (diferencia !== 0) {
-      // Ajustar stock según el tipo de movimiento
       if (movimientoOriginal.tipo === 'ENTRADA') {
-        nuevoStock += diferencia; // Si aumenta cantidad, aumenta stock
-      } else { // SALIDA o VENTA
-        nuevoStock -= diferencia; // Si aumenta cantidad, disminuye stock
+        nuevoStock += diferencia;
+      } else {
+        nuevoStock -= diferencia;
       }
-
-      // Validar que el stock no sea negativo
       if (nuevoStock < 0) {
         return NextResponse.json(
           { error: `Stock insuficiente. El stock quedaría en ${nuevoStock}` },
@@ -264,16 +245,12 @@ export async function PUT(request) {
       }
     }
 
-    // Preparar fecha si cambió
-    let fechaActualizada = movimientoOriginal.createdAt;
-    if (fecha) {
-      const fechaParts = fecha.split('-');
-      fechaActualizada = new Date(parseInt(fechaParts[0]), parseInt(fechaParts[1]) - 1, parseInt(fechaParts[2]), 12, 0, 0);
-    }
+    // ✅ Usar hora real o manual también en edición
+    const fechaActualizada = fecha
+      ? buildFecha(fecha, hora)
+      : movimientoOriginal.createdAt;
 
-    // Actualizar en transacción
     const movimientoActualizado = await prisma.$transaction(async (tx) => {
-      // Actualizar el movimiento
       const movActualizado = await tx.movimiento.update({
         where: { id: parseInt(id) },
         data: {
@@ -283,22 +260,12 @@ export async function PUT(request) {
           usuarioId: usuarioId ? parseInt(usuarioId) : movimientoOriginal.usuarioId,
         },
         include: {
-          producto: {
-            include: {
-              categoria: true
-            }
-          },
-          usuario: {
-            select: {
-              id: true,
-              nombre: true,
-              email: true
-            }
-          }
+          producto: { include: { categoria: true } },
+          usuario: { select: { id: true, nombre: true, email: true } },
+          venta: { select: { id: true, total: true, metodoPago: true } }
         }
       });
 
-      // Actualizar stock si cambió la cantidad
       if (diferencia !== 0) {
         await tx.producto.update({
           where: { id: movimientoOriginal.productoId },

@@ -1,9 +1,14 @@
 'use client';
 
-import { useEffect, useState } from 'react';
-import { ShoppingCart, Plus, TrendingUp, TrendingDown, Search, X, UserCircle, Ban, AlertTriangle, Calendar, Filter, DollarSign, CreditCard, Edit, Save } from 'lucide-react';
+import { useEffect, useState, useCallback } from 'react';
+import {
+  ShoppingCart, Plus, TrendingUp, TrendingDown, Search, X, UserCircle, Ban,
+  AlertTriangle, Calendar, Filter, DollarSign, CreditCard, Edit, Save,
+  Minus, Trash2, ChevronLeft, ChevronRight, Package, Tag
+} from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
 import PageWrapper from '@/components/PageWrapper';
+import Image from 'next/image';
 
 function useDebounce(value, delay) {
   const [debounced, setDebounced] = useState(value);
@@ -14,66 +19,241 @@ function useDebounce(value, delay) {
   return debounced;
 }
 
+const PAGE_SIZE_POS = 12;
+
 export default function MovimientosPage() {
   const { isAdmin } = useAuth();
+
+  // ── Historial ──
   const [movimientos, setMovimientos] = useState([]);
-  const [usuarios, setUsuarios] = useState([]); // ✅ NUEVO
+  const [usuarios, setUsuarios] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [showForm, setShowForm] = useState(false);
+
+  // ── Modo formulario: 'ENTRADA' | 'SALIDA' | 'VENTA' | null ──
+  const [modoFormulario, setModoFormulario] = useState(null);
+
+  // ── Formulario ENTRADA / SALIDA ──
   const [busquedaInput, setBusquedaInput] = useState('');
   const [busquedaProducto, setBusquedaProducto] = useState('');
   const busquedaProductoDebounced = useDebounce(busquedaProducto, 350);
   const [sugerencias, setSugerencias] = useState([]);
   const [mostrarSugerencias, setMostrarSugerencias] = useState(false);
   const [buscandoSugerencias, setBuscandoSugerencias] = useState(false);
-  const [formData, setFormData] = useState({ 
-    productoId: '', 
-    productoNombre: '', 
-    tipo: 'ENTRADA', 
-    cantidad: '', 
-    motivo: '',
+  const [formData, setFormData] = useState({
+    productoId: '', productoNombre: '', tipo: 'ENTRADA',
+    cantidad: '', motivo: '',
     fecha: new Date().toISOString().split('T')[0],
-    metodoPago: 'EFECTIVO',
-    usuarioId: '' // ✅ NUEVO: Usuario seleccionado
+    hora: new Date().toTimeString().slice(0, 5),
+    horaAuto: true,
+    usuarioId: ''
   });
+
+  // ── POS (VENTA) ──
+  const [posProductos, setPosProductos] = useState([]);
+  const [posTotalProductos, setPosTotalProductos] = useState(0);
+  const [posTotalPaginas, setPosTotalPaginas] = useState(1);
+  const [posPaginaActual, setPosPaginaActual] = useState(1);
+  const [posLoadingProductos, setPosLoadingProductos] = useState(false);
+  const [posBusqueda, setPosBusqueda] = useState('');
+  const posBusquedaDebounced = useDebounce(posBusqueda, 400);
+  const [carrito, setCarrito] = useState([]);
+  const [metodoPago, setMetodoPago] = useState('EFECTIVO');
+  const [clienteNombre, setClienteNombre] = useState('');
+  const [clienteDni, setClienteDni] = useState('');
+  const [fechaVenta, setFechaVenta] = useState(new Date().toISOString().split('T')[0]);
+  const [horaVenta, setHoraVenta] = useState(() => {
+    const now = new Date();
+    return now.toTimeString().slice(0, 5);
+  });
+  const [horaVentaAuto, setHoraVentaAuto] = useState(true);
+  const [procesandoVenta, setProcesandoVenta] = useState(false);
+  const [ventaUsuarioId, setVentaUsuarioId] = useState('');
+  const [modalManualPos, setModalManualPos] = useState(false);
+  const [itemManualDesc, setItemManualDesc] = useState('');
+  const [itemManualPrecio, setItemManualPrecio] = useState('');
+  const [itemManualCant, setItemManualCant] = useState('1');
+
+  // ── Modales ──
   const [modalCancelar, setModalCancelar] = useState(null);
   const [motivoCancelacion, setMotivoCancelacion] = useState('');
   const [cancelando, setCancelando] = useState(false);
-
-  // ✅ NUEVO: Estado para edición de movimientos
   const [modalEditar, setModalEditar] = useState(null);
   const [editForm, setEditForm] = useState({});
   const [guardandoEdicion, setGuardandoEdicion] = useState(false);
 
-  // Filtros
+  // ── Filtros historial ──
   const [mostrarFiltros, setMostrarFiltros] = useState(false);
   const [filtroFechaInicio, setFiltroFechaInicio] = useState('');
   const [filtroFechaFin, setFiltroFechaFin] = useState('');
   const [filtroTipo, setFiltroTipo] = useState('');
 
-  useEffect(() => { 
-    fetchMovimientos(); 
-    // ✅ NUEVO: Cargar usuarios si es admin
-    if (isAdmin()) {
-      fetchUsuarios();
-    }
+  // ════════════════════════════════════════
+  // Carga inicial
+  // ════════════════════════════════════════
+  useEffect(() => {
+    fetchMovimientos();
+    if (isAdmin()) fetchUsuarios();
   }, [isAdmin]);
 
-  useEffect(() => {
-    if (!busquedaProductoDebounced.trim()) { setSugerencias([]); setMostrarSugerencias(false); return; }
-    buscarSugerencias(busquedaProductoDebounced);
-  }, [busquedaProductoDebounced]);
+  const fetchMovimientos = async () => {
+    setLoading(true);
+    try {
+      const res = await fetch('/api/movimientos');
+      setMovimientos(await res.json());
+    } catch { console.error('Error al cargar movimientos'); }
+    finally { setLoading(false); }
+  };
 
-  // ✅ NUEVO: Fetch usuarios
   const fetchUsuarios = async () => {
     try {
       const res = await fetch('/api/usuarios');
       const data = await res.json();
-      setUsuarios(data.filter(u => u.activo)); // Solo usuarios activos
-    } catch (err) {
-      console.error('Error al cargar usuarios');
+      setUsuarios(data.filter(u => u.activo));
+    } catch { console.error('Error al cargar usuarios'); }
+  };
+
+  // ════════════════════════════════════════
+  // POS — productos
+  // ════════════════════════════════════════
+  const fetchPosProductos = useCallback(async (pagina = 1, busq = '') => {
+    setPosLoadingProductos(true);
+    try {
+      const params = new URLSearchParams({ page: pagina, pageSize: PAGE_SIZE_POS });
+      if (busq.trim()) params.set('busqueda', busq.trim());
+      const res = await fetch(`/api/productos?${params}`);
+      const data = await res.json();
+      setPosProductos(data.productos ?? []);
+      setPosTotalProductos(data.pagination?.total ?? 0);
+      setPosTotalPaginas(data.pagination?.totalPages ?? 1);
+    } catch { console.error('Error cargando productos POS'); }
+    finally { setPosLoadingProductos(false); }
+  }, []);
+
+  // Cargar productos cuando se abre el POS
+  useEffect(() => {
+    if (modoFormulario === 'VENTA') fetchPosProductos(1, '');
+  }, [modoFormulario, fetchPosProductos]);
+
+  // Búsqueda debounced en POS
+  useEffect(() => {
+    if (modoFormulario !== 'VENTA') return;
+    setPosPaginaActual(1);
+    fetchPosProductos(1, posBusquedaDebounced);
+  }, [posBusquedaDebounced, modoFormulario, fetchPosProductos]);
+
+  const irAPaginaPos = (p) => {
+    setPosPaginaActual(p);
+    fetchPosProductos(p, posBusquedaDebounced);
+  };
+
+  // ════════════════════════════════════════
+  // POS — carrito
+  // ════════════════════════════════════════
+  const agregarAlCarrito = (producto) => {
+    const item = carrito.find(i => i.productoId === producto.id);
+    if (item) {
+      if (item.cantidad >= producto.stock) { alert('No hay suficiente stock disponible'); return; }
+      setCarrito(carrito.map(i => i.productoId === producto.id ? { ...i, cantidad: i.cantidad + 1 } : i));
+    } else {
+      if (producto.stock === 0) { alert('Producto sin stock'); return; }
+      setCarrito([...carrito, {
+        productoId: producto.id, nombre: producto.nombre,
+        precioUnit: producto.precio, cantidad: 1, stock: producto.stock,
+        imagen: producto.imagenes?.[0] || producto.imagen || null,
+        esManual: false,
+      }]);
     }
   };
+
+  // ── Agregar ítem manual al carrito (POS) ──
+  const agregarItemManualPos = () => {
+    const precio = parseFloat(itemManualPrecio);
+    const cant = parseInt(itemManualCant);
+    if (!itemManualDesc.trim()) { alert('Escribí una descripción'); return; }
+    if (!precio || precio <= 0) { alert('Ingresá un precio válido'); return; }
+    if (!cant || cant <= 0) { alert('Ingresá una cantidad válida'); return; }
+    const idTemporal = `manual_${Date.now()}_${Math.random()}`;
+    setCarrito(prev => [...prev, {
+      id: idTemporal,
+      productoId: null,
+      nombre: itemManualDesc.trim(),
+      precioUnit: precio,
+      cantidad: cant,
+      stock: Infinity,
+      esManual: true,
+      descripcion: itemManualDesc.trim(),
+      imagen: null,
+    }]);
+    setItemManualDesc('');
+    setItemManualPrecio('');
+    setItemManualCant('1');
+    setModalManualPos(false);
+  };
+
+  const actualizarCantidad = (idItem, nuevaCantidad) => {
+    const item = carrito.find(i => (i.esManual ? i.id : i.productoId) === idItem);
+    if (nuevaCantidad <= 0) { eliminarDelCarrito(idItem); return; }
+    if (!item.esManual && nuevaCantidad > item.stock) { alert('No hay suficiente stock disponible'); return; }
+    setCarrito(carrito.map(i => (i.esManual ? i.id : i.productoId) === idItem ? { ...i, cantidad: nuevaCantidad } : i));
+  };
+
+  const eliminarDelCarrito = (idItem) => setCarrito(carrito.filter(i => (i.esManual ? i.id : i.productoId) !== idItem));
+  const calcularTotal = () => carrito.reduce((sum, i) => sum + i.precioUnit * i.cantidad, 0);
+
+  // ════════════════════════════════════════
+  // POS — finalizar venta
+  // ════════════════════════════════════════
+  const finalizarVenta = async () => {
+    if (!carrito.length) { alert('El carrito está vacío'); return; }
+    setProcesandoVenta(true);
+    try {
+      const payload = {
+        items: carrito.map(i => i.esManual
+          ? { esManual: true, descripcion: i.descripcion, precioUnit: i.precioUnit, cantidad: i.cantidad }
+          : { productoId: i.productoId, precioUnit: i.precioUnit, cantidad: i.cantidad }
+        ),
+        metodoPago,
+        clienteNombre: clienteNombre || null,
+        clienteDni: clienteDni || null,
+        fecha: fechaVenta,
+        hora: horaVentaAuto ? null : horaVenta,
+      };
+      if (isAdmin() && ventaUsuarioId) {
+        payload.usuarioIdSeleccionado = ventaUsuarioId;
+      }
+      const res = await fetch('/api/ventas', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      });
+      if (!res.ok) { const e = await res.json(); throw new Error(e.error); }
+      const venta = await res.json();
+      alert(`✅ Venta #${venta.id} registrada!\nTotal: $${venta.total.toFixed(2)}`);
+      // Reset POS
+      setCarrito([]);
+      setClienteNombre('');
+      setClienteDni('');
+      setFechaVenta(new Date().toISOString().split('T')[0]);
+      setMetodoPago('EFECTIVO');
+      setVentaUsuarioId('');
+      setHoraVenta(new Date().toTimeString().slice(0, 5));
+      setHoraVentaAuto(true);
+      setPosBusqueda('');
+      setModoFormulario(null);
+      fetchMovimientos();
+      fetchPosProductos(1, '');
+    } catch (err) {
+      alert(err.message || 'Error al procesar la venta');
+    } finally { setProcesandoVenta(false); }
+  };
+
+  // ════════════════════════════════════════
+  // Formulario ENTRADA / SALIDA
+  // ════════════════════════════════════════
+  useEffect(() => {
+    if (!busquedaProductoDebounced.trim()) { setSugerencias([]); setMostrarSugerencias(false); return; }
+    buscarSugerencias(busquedaProductoDebounced);
+  }, [busquedaProductoDebounced]);
 
   const buscarSugerencias = async (query) => {
     setBuscandoSugerencias(true);
@@ -83,18 +263,8 @@ export default function MovimientosPage() {
       const lista = Array.isArray(data) ? data : (data.productos ?? []);
       setSugerencias(lista);
       setMostrarSugerencias(lista.length > 0);
-    } catch { /* silencioso */ }
+    } catch { }
     finally { setBuscandoSugerencias(false); }
-  };
-
-  const fetchMovimientos = async () => {
-    setLoading(true);
-    try {
-      const res = await fetch('/api/movimientos');
-      const data = await res.json();
-      setMovimientos(data);
-    } catch { console.error('Error al cargar movimientos'); }
-    finally { setLoading(false); }
   };
 
   const seleccionarProducto = (p) => {
@@ -108,55 +278,45 @@ export default function MovimientosPage() {
     setBusquedaProducto('');
   };
 
-  const handleSubmit = async (e) => {
+  const handleSubmitMovimiento = async (e) => {
     e.preventDefault();
     if (!formData.productoId) { alert('Selecciona un producto'); return; }
-    
     try {
-      const payload = { 
-        productoId: formData.productoId, 
-        tipo: formData.tipo, 
-        cantidad: formData.cantidad, 
+      const payload = {
+        productoId: formData.productoId,
+        tipo: modoFormulario,
+        cantidad: formData.cantidad,
         motivo: formData.motivo,
         fecha: formData.fecha,
+        hora: formData.horaAuto ? null : formData.hora,
       };
-
-      // ✅ NUEVO: Agregar usuarioId si el admin seleccionó uno
       if (isAdmin() && formData.usuarioId) {
         payload.usuarioIdSeleccionado = formData.usuarioId;
       }
-
-      // Si es VENTA, agregar método de pago
-      if (formData.tipo === 'VENTA') {
-        payload.metodoPago = formData.metodoPago;
-      }
-
       const res = await fetch('/api/movimientos', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payload),
       });
       if (!res.ok) { const e = await res.json(); throw new Error(e.error); }
-      
-      setFormData({ 
-        productoId: '', 
-        productoNombre: '', 
-        tipo: 'ENTRADA', 
-        cantidad: '', 
-        motivo: '',
+      setFormData({
+        productoId: '', productoNombre: '', tipo: 'ENTRADA',
+        cantidad: '', motivo: '',
         fecha: new Date().toISOString().split('T')[0],
-        metodoPago: 'EFECTIVO',
         usuarioId: ''
       });
       setBusquedaProducto('');
-      setShowForm(false);
+      setModoFormulario(null);
       fetchMovimientos();
       alert('Movimiento registrado correctamente');
-    } catch (err) { 
-      alert(err.message || 'Error al registrar movimiento'); 
+    } catch (err) {
+      alert(err.message || 'Error al registrar movimiento');
     }
   };
 
+  // ════════════════════════════════════════
+  // Cancelar / Editar movimientos
+  // ════════════════════════════════════════
   const confirmarCancelacion = async () => {
     if (!modalCancelar) return;
     setCancelando(true);
@@ -175,12 +335,8 @@ export default function MovimientosPage() {
     } finally { setCancelando(false); }
   };
 
-  // ✅ NUEVO: Abrir modal de edición
   const abrirEdicion = (movimiento) => {
-    if (movimiento.cancelado) {
-      alert('No se puede editar un movimiento cancelado');
-      return;
-    }
+    if (movimiento.cancelado) { alert('No se puede editar un movimiento cancelado'); return; }
     setModalEditar(movimiento);
     setEditForm({
       cantidad: movimiento.cantidad.toString(),
@@ -190,13 +346,8 @@ export default function MovimientosPage() {
     });
   };
 
-  // ✅ NUEVO: Guardar edición
   const guardarEdicion = async () => {
-    if (!editForm.cantidad || parseInt(editForm.cantidad) <= 0) {
-      alert('La cantidad debe ser mayor a 0');
-      return;
-    }
-
+    if (!editForm.cantidad || parseInt(editForm.cantidad) <= 0) { alert('La cantidad debe ser mayor a 0'); return; }
     setGuardandoEdicion(true);
     try {
       const res = await fetch(`/api/movimientos/${modalEditar.id}`, {
@@ -209,54 +360,56 @@ export default function MovimientosPage() {
           usuarioId: editForm.usuarioId ? parseInt(editForm.usuarioId) : null,
         }),
       });
-
-      if (!res.ok) { 
-        const e = await res.json(); 
-        throw new Error(e.error); 
-      }
-
+      if (!res.ok) { const e = await res.json(); throw new Error(e.error); }
       setModalEditar(null);
       fetchMovimientos();
       alert('Movimiento actualizado correctamente');
     } catch (err) {
       alert(err.message || 'Error al actualizar movimiento');
-    } finally {
-      setGuardandoEdicion(false);
-    }
+    } finally { setGuardandoEdicion(false); }
   };
 
+  // ════════════════════════════════════════
+  // Filtros historial
+  // ════════════════════════════════════════
   const movimientosFiltrados = movimientos.filter(m => {
     if (busquedaInput.trim()) {
-      const termino = busquedaInput.toLowerCase();
-      const nombreCoincide = m.producto.nombre.toLowerCase().includes(termino);
-      const categoriaCoincide = m.producto.categoria.nombre.toLowerCase().includes(termino);
-      const motivoCoincide = m.motivo && m.motivo.toLowerCase().includes(termino);
-      if (!nombreCoincide && !categoriaCoincide && !motivoCoincide) return false;
+      const t = busquedaInput.toLowerCase();
+      if (!m.producto.nombre.toLowerCase().includes(t) &&
+          !m.producto.categoria.nombre.toLowerCase().includes(t) &&
+          !(m.motivo && m.motivo.toLowerCase().includes(t))) return false;
     }
-
     if (filtroFechaInicio) {
-      const fechaMovimiento = new Date(m.createdAt).toISOString().split('T')[0];
-      if (fechaMovimiento < filtroFechaInicio) return false;
+      if (new Date(m.createdAt).toISOString().split('T')[0] < filtroFechaInicio) return false;
     }
-
     if (filtroFechaFin) {
-      const fechaMovimiento = new Date(m.createdAt).toISOString().split('T')[0];
-      if (fechaMovimiento > filtroFechaFin) return false;
+      if (new Date(m.createdAt).toISOString().split('T')[0] > filtroFechaFin) return false;
     }
-
     if (filtroTipo && m.tipo !== filtroTipo) return false;
-
     return true;
   });
 
   const limpiarFiltros = () => {
-    setFiltroFechaInicio('');
-    setFiltroFechaFin('');
-    setFiltroTipo('');
-    setBusquedaInput('');
+    setFiltroFechaInicio(''); setFiltroFechaFin(''); setFiltroTipo(''); setBusquedaInput('');
   };
 
   const hayFiltrosActivos = filtroFechaInicio || filtroFechaFin || filtroTipo || busquedaInput;
+
+  const cerrarFormulario = () => {
+    setModoFormulario(null);
+    setCarrito([]);
+    setPosBusqueda('');
+    setVentaUsuarioId('');
+    setBusquedaProducto('');
+    setFormData({
+      productoId: '', productoNombre: '', tipo: 'ENTRADA',
+      cantidad: '', motivo: '',
+      fecha: new Date().toISOString().split('T')[0],
+      hora: new Date().toTimeString().slice(0, 5),
+      horaAuto: true,
+      usuarioId: ''
+    });
+  };
 
   if (loading) return (
     <div className="flex justify-center items-center h-64">
@@ -267,169 +420,456 @@ export default function MovimientosPage() {
   return (
     <PageWrapper>
       <div className="space-y-6">
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-2">
+
+        {/* ── Header ── */}
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
           <h1 className="text-2xl font-bold text-gray-800 dark:text-gray-100 flex items-center gap-2">
             <ShoppingCart className="w-7 h-7" /> Movimientos de Stock
           </h1>
-          <button onClick={() => setShowForm(!showForm)}
-            className="bg-blue-600 hover:bg-blue-700 text-white px-3 py-2 rounded-lg flex items-center gap-2 text-sm transition-colors flex-shrink-0">
-            <Plus className="w-4 h-4" /> Registrar Movimiento
-          </button>
+
+          {/* Botones de acción */}
+          {!modoFormulario && (
+            <div className="flex gap-2 flex-wrap">
+              <button
+                onClick={() => setModoFormulario('VENTA')}
+                className="bg-green-600 hover:bg-green-700 text-white px-3 py-2 rounded-lg flex items-center gap-2 text-sm transition-colors"
+              >
+                <DollarSign className="w-4 h-4" /> Nueva Venta
+              </button>
+              <button
+                onClick={() => setModoFormulario('ENTRADA')}
+                className="bg-blue-600 hover:bg-blue-700 text-white px-3 py-2 rounded-lg flex items-center gap-2 text-sm transition-colors"
+              >
+                <TrendingUp className="w-4 h-4" /> Entrada de Stock
+              </button>
+              <button
+                onClick={() => setModoFormulario('SALIDA')}
+                className="bg-orange-500 hover:bg-orange-600 text-white px-3 py-2 rounded-lg flex items-center gap-2 text-sm transition-colors"
+              >
+                <TrendingDown className="w-4 h-4" /> Salida de Stock
+              </button>
+            </div>
+          )}
         </div>
 
-        {showForm && (
-          <form onSubmit={handleSubmit} className="bg-white dark:bg-gray-800 rounded-lg shadow-md p-6 space-y-4">
-            <h2 className="text-xl font-semibold text-gray-800 dark:text-gray-100 mb-4">
-              Nuevo Movimiento
-            </h2>
+        {/* ══════════════════════════════════════════
+            FORMULARIO POS (VENTA)
+        ══════════════════════════════════════════ */}
+        {modoFormulario === 'VENTA' && (
+          <div className="bg-white dark:bg-gray-800 rounded-lg shadow-md overflow-hidden">
+            {/* Cabecera del POS */}
+            <div className="bg-green-600 px-6 py-4 flex items-center justify-between">
+              <h2 className="text-white font-bold text-xl flex items-center gap-2">
+                <DollarSign className="w-6 h-6" /> Registrar Venta
+              </h2>
+              <button onClick={cerrarFormulario} className="text-white/80 hover:text-white transition-colors">
+                <X className="w-6 h-6" />
+              </button>
+            </div>
 
-            <div className="relative">
-              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Buscar Producto *</label>
-              <div className="relative">
-                <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 w-5 h-5" />
-                <input type="text" value={busquedaProducto}
-                  onChange={(e) => { setBusquedaProducto(e.target.value); if (formData.productoId) limpiarSeleccion(); }}
-                  placeholder="Nombre, código de producto o código de barras..."
-                  className="w-full pl-10 pr-10 py-2 border border-gray-300 dark:border-gray-600 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 text-gray-900 dark:text-gray-100 dark:bg-gray-700"
-                />
-                {buscandoSugerencias && (
-                  <div className="absolute right-3 top-1/2 -translate-y-1/2">
-                    <div className="w-4 h-4 border-2 border-blue-500 border-t-transparent rounded-full animate-spin" />
+            <div className="p-4 grid grid-cols-1 lg:grid-cols-3 gap-6">
+
+              {/* Panel izquierdo — catálogo */}
+              <div className="lg:col-span-2 space-y-4">
+                {/* Buscador */}
+                <div className="relative">
+                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 w-5 h-5" />
+                  <input
+                    type="text"
+                    placeholder="Buscar producto por nombre o código..."
+                    value={posBusqueda}
+                    onChange={e => setPosBusqueda(e.target.value)}
+                    className="w-full pl-10 pr-4 py-2.5 border border-gray-300 dark:border-gray-600 rounded-md focus:outline-none focus:ring-2 focus:ring-green-500 text-gray-900 dark:text-gray-100 dark:bg-gray-700"
+                    autoFocus
+                  />
+                  {posBusqueda && (
+                    <button onClick={() => setPosBusqueda('')} className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600">
+                      <X className="w-4 h-4" />
+                    </button>
+                  )}
+                </div>
+
+                {/* Paginación */}
+                {posTotalPaginas > 1 && (
+                  <div className="flex items-center justify-between text-sm text-gray-600 dark:text-gray-400">
+                    <span>{posTotalProductos} productos</span>
+                    <div className="flex gap-1 items-center">
+                      <button onClick={() => irAPaginaPos(Math.max(1, posPaginaActual - 1))} disabled={posPaginaActual === 1}
+                        className="p-1 border border-gray-300 dark:border-gray-600 rounded disabled:opacity-50 hover:bg-gray-50 dark:hover:bg-gray-700">
+                        <ChevronLeft className="w-4 h-4" />
+                      </button>
+                      <span className="px-2">{posPaginaActual}/{posTotalPaginas}</span>
+                      <button onClick={() => irAPaginaPos(Math.min(posTotalPaginas, posPaginaActual + 1))} disabled={posPaginaActual === posTotalPaginas}
+                        className="p-1 border border-gray-300 dark:border-gray-600 rounded disabled:opacity-50 hover:bg-gray-50 dark:hover:bg-gray-700">
+                        <ChevronRight className="w-4 h-4" />
+                      </button>
+                    </div>
                   </div>
                 )}
-                {busquedaProducto && !buscandoSugerencias && (
-                  <button type="button" onClick={limpiarSeleccion} className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600">
-                    <X className="w-4 h-4" />
-                  </button>
+
+                {/* Grilla de productos */}
+                {posLoadingProductos ? (
+                  <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3">
+                    {Array.from({ length: 8 }).map((_, i) => (
+                      <div key={i} className="border dark:border-gray-700 rounded-lg p-3 animate-pulse">
+                        <div className="w-full h-20 bg-gray-200 dark:bg-gray-700 rounded mb-2" />
+                        <div className="h-3 bg-gray-200 dark:bg-gray-700 rounded mb-1" />
+                        <div className="h-3 bg-gray-200 dark:bg-gray-700 rounded w-2/3" />
+                      </div>
+                    ))}
+                  </div>
+                ) : posProductos.length === 0 ? (
+                  <div className="text-center py-12 text-gray-500 dark:text-gray-400">
+                    <Package className="w-12 h-12 mx-auto mb-3 text-gray-300" />
+                    No se encontraron productos
+                  </div>
+                ) : (
+                  <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3 max-h-[460px] overflow-y-auto pr-1">
+                    {posProductos.map(producto => (
+                      <div
+                        key={producto.id}
+                        onClick={() => producto.stock > 0 && agregarAlCarrito(producto)}
+                        className={`border dark:border-gray-700 rounded-lg p-2 transition-all relative ${
+                          producto.stock === 0
+                            ? 'bg-gray-50 dark:bg-gray-900/50 cursor-not-allowed opacity-60'
+                            : 'hover:shadow-md hover:border-green-400 dark:hover:border-green-500 cursor-pointer'
+                        }`}
+                      >
+                        <div className="relative w-full h-20 mb-2 bg-gray-100 dark:bg-gray-700 rounded-md overflow-hidden">
+                          {(producto.imagenes?.[0] || producto.imagen) ? (
+                            <Image
+                              src={producto.imagenes?.[0] || producto.imagen}
+                              alt={producto.nombre} fill className="object-cover" sizes="120px"
+                            />
+                          ) : (
+                            <div className="w-full h-full flex items-center justify-center">
+                              <Package className="w-8 h-8 text-gray-400" />
+                            </div>
+                          )}
+                          {producto.stock === 0 && (
+                            <div className="absolute inset-0 bg-black/50 flex items-center justify-center">
+                              <span className="text-white text-xs font-bold bg-red-600 px-1.5 py-0.5 rounded">SIN STOCK</span>
+                            </div>
+                          )}
+                        </div>
+                        <p className="text-xs font-semibold text-gray-900 dark:text-gray-100 line-clamp-2 leading-tight">{producto.nombre}</p>
+                        {producto.codigoProducto && (
+                          <p className="text-xs text-green-600 dark:text-green-400 font-medium truncate">{producto.codigoProducto}</p>
+                        )}
+                        <p className="text-sm font-bold text-green-600 dark:text-green-400 mt-0.5">${producto.precio.toFixed(2)}</p>
+                        <p className={`text-xs mt-0.5 ${producto.stock <= producto.stockMinimo && producto.stock > 0 ? 'text-orange-500' : 'text-gray-500 dark:text-gray-400'}`}>
+                          Stock: {producto.stock}
+                        </p>
+                      </div>
+                    ))}
+                  </div>
                 )}
               </div>
-              {mostrarSugerencias && sugerencias.length > 0 && (
-                <div className="absolute z-10 w-full mt-1 bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-md shadow-lg max-h-60 overflow-y-auto">
-                  {sugerencias.map(p => (
-                    <button key={p.id} type="button" onClick={() => seleccionarProducto(p)}
-                      className="w-full text-left px-4 py-2 hover:bg-gray-100 dark:hover:bg-gray-600 border-b dark:border-gray-600 last:border-b-0">
-                      <div className="font-medium text-gray-900 dark:text-gray-100">{p.nombre}</div>
-                      <div className="text-sm text-gray-500 dark:text-gray-400">
-                        {p.codigoProducto && `Código: ${p.codigoProducto} | `}Stock: {p.stock} | Precio: ${p.precio.toFixed(2)}
+
+              {/* Panel derecho — carrito y pago */}
+              <div className="space-y-4">
+                <div className="bg-gray-50 dark:bg-gray-700/50 rounded-lg p-4 space-y-3">
+                  <h3 className="font-semibold text-gray-800 dark:text-gray-100 flex items-center gap-2">
+                    <ShoppingCart className="w-5 h-5" /> Carrito ({carrito.length})
+                  </h3>
+
+                  {/* Items del carrito */}
+                  <div className="space-y-2 max-h-48 overflow-y-auto">
+                    {carrito.length === 0 ? (
+                      <p className="text-sm text-gray-500 dark:text-gray-400 text-center py-4">
+                        Seleccioná productos del catálogo
+                      </p>
+                    ) : carrito.map(item => {
+                      const itemId = item.esManual ? item.id : item.productoId;
+                      return (
+                      <div key={itemId} className="flex items-center gap-2 bg-white dark:bg-gray-800 rounded-md p-2 shadow-sm">
+                        <div className="flex-1 min-w-0">
+                          <p className="text-xs font-medium text-gray-900 dark:text-gray-100 truncate flex items-center gap-1">
+                            {item.esManual && <Tag className="w-3 h-3 text-orange-500 flex-shrink-0" />}
+                            {item.nombre}
+                          </p>
+                          <p className="text-xs text-gray-500">${item.precioUnit.toFixed(2)}</p>
+                        </div>
+                        <div className="flex items-center gap-1">
+                          <button onClick={() => actualizarCantidad(itemId, item.cantidad - 1)}
+                            className="bg-gray-200 dark:bg-gray-700 hover:bg-gray-300 p-0.5 rounded">
+                            <Minus className="w-3 h-3" />
+                          </button>
+                          <span className="w-5 text-center text-xs font-bold">{item.cantidad}</span>
+                          <button onClick={() => actualizarCantidad(itemId, item.cantidad + 1)}
+                            className="bg-gray-200 dark:bg-gray-700 hover:bg-gray-300 p-0.5 rounded">
+                            <Plus className="w-3 h-3" />
+                          </button>
+                        </div>
+                        <p className="text-xs font-bold text-green-600 dark:text-green-400 w-14 text-right whitespace-nowrap">
+                          ${(item.precioUnit * item.cantidad).toFixed(2)}
+                        </p>
+                        <button onClick={() => eliminarDelCarrito(itemId)} className="text-red-500 hover:text-red-700 flex-shrink-0">
+                          <X className="w-3.5 h-3.5" />
+                        </button>
                       </div>
+                      );
+                    })}
+                  </div>
+
+                  {/* Total */}
+                  <div className="border-t dark:border-gray-600 pt-2 flex justify-between items-center font-bold">
+                    <span className="text-gray-800 dark:text-gray-100">TOTAL:</span>
+                    <span className="text-green-600 dark:text-green-400 text-xl">${calcularTotal().toFixed(2)}</span>
+                  </div>
+                </div>
+
+                {/* Botón ítem manual */}
+                <button onClick={() => setModalManualPos(true)}
+                  className="w-full border-2 border-dashed border-orange-300 dark:border-orange-600 text-orange-600 dark:text-orange-400 hover:bg-orange-50 dark:hover:bg-orange-900/20 py-2 rounded-lg text-sm font-medium flex items-center justify-center gap-2 transition-colors">
+                  <Tag className="w-4 h-4" />
+                  + Ítem manual (Varios)
+                </button>
+
+                {/* Método de pago */}
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1 flex items-center gap-1">
+                    <CreditCard className="w-4 h-4" /> Método de Pago
+                  </label>
+                  <select value={metodoPago} onChange={e => setMetodoPago(e.target.value)}
+                    className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md focus:outline-none focus:ring-2 focus:ring-green-500 text-gray-900 dark:text-gray-100 dark:bg-gray-700 text-sm">
+                    <option value="EFECTIVO">💵 Efectivo</option>
+                    <option value="TARJETA_DEBITO">💳 Tarjeta de Débito</option>
+                    <option value="TARJETA_CREDITO">💳 Tarjeta de Crédito</option>
+                    <option value="TRANSFERENCIA">🏦 Transferencia</option>
+                    <option value="QR">📱 Código QR</option>
+                  </select>
+                </div>
+
+                {/* Fecha y Hora */}
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1 flex items-center gap-1">
+                    <Calendar className="w-4 h-4" /> Fecha de Venta
+                  </label>
+                  <input type="date" value={fechaVenta} onChange={e => setFechaVenta(e.target.value)}
+                    max={new Date().toISOString().split('T')[0]}
+                    className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md focus:outline-none focus:ring-2 focus:ring-green-500 text-gray-900 dark:text-gray-100 dark:bg-gray-700 text-sm" />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">🕐 Hora</label>
+                  <div className="flex gap-2">
+                    <input
+                      type="time"
+                      value={horaVenta}
+                      onChange={e => { setHoraVenta(e.target.value); setHoraVentaAuto(false); }}
+                      disabled={horaVentaAuto}
+                      className="flex-1 px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md focus:outline-none focus:ring-2 focus:ring-green-500 text-gray-900 dark:text-gray-100 dark:bg-gray-700 text-sm disabled:opacity-50"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const ahora = new Date().toTimeString().slice(0, 5);
+                        setHoraVenta(ahora);
+                        setHoraVentaAuto(prev => !prev);
+                      }}
+                      className={`px-3 py-2 rounded-md text-xs font-semibold border transition-colors whitespace-nowrap ${
+                        horaVentaAuto
+                          ? 'bg-green-600 text-white border-green-600'
+                          : 'bg-white dark:bg-gray-700 text-gray-600 dark:text-gray-300 border-gray-300 dark:border-gray-600 hover:bg-gray-50'
+                      }`}
+                    >
+                      {horaVentaAuto ? '⚡ Ahora' : 'Manual'}
                     </button>
-                  ))}
+                  </div>
+                </div>
+
+                {/* Cliente */}
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1 flex items-center gap-1">
+                    <UserCircle className="w-4 h-4" /> Cliente (opcional)
+                  </label>
+                  <input type="text" placeholder="Nombre" value={clienteNombre} onChange={e => setClienteNombre(e.target.value)}
+                    className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md focus:outline-none focus:ring-2 focus:ring-green-500 text-gray-900 dark:text-gray-100 dark:bg-gray-700 text-sm mb-2" />
+                  <input type="text" placeholder="DNI" value={clienteDni} onChange={e => setClienteDni(e.target.value)}
+                    className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md focus:outline-none focus:ring-2 focus:ring-green-500 text-gray-900 dark:text-gray-100 dark:bg-gray-700 text-sm" />
+                </div>
+
+                {/* Selector vendedor — solo admin */}
+                {isAdmin() && (
+                  <div className="bg-purple-50 dark:bg-purple-900/20 border border-purple-200 dark:border-purple-700 rounded-lg p-3">
+                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1 flex items-center gap-1">
+                      <UserCircle className="w-4 h-4 text-purple-600" /> Vendedor
+                    </label>
+                    <select value={ventaUsuarioId} onChange={e => setVentaUsuarioId(e.target.value)}
+                      className="w-full px-3 py-2 border border-purple-300 dark:border-purple-600 rounded-md focus:outline-none focus:ring-2 focus:ring-purple-500 text-gray-900 dark:text-gray-100 dark:bg-gray-700 text-sm">
+                      <option value="">Yo (usuario actual)</option>
+                      {usuarios.map(u => (
+                        <option key={u.id} value={u.id}>{u.nombre} — {u.rol === 'ADMINISTRADOR' ? 'Admin' : 'Empleado'}</option>
+                      ))}
+                    </select>
+                  </div>
+                )}
+
+                {/* Botón finalizar */}
+                <button
+                  onClick={finalizarVenta}
+                  disabled={carrito.length === 0 || procesandoVenta}
+                  className="w-full bg-green-600 hover:bg-green-700 disabled:bg-gray-400 text-white py-3 rounded-lg font-bold flex items-center justify-center gap-2 transition-colors"
+                >
+                  <DollarSign className="w-5 h-5" />
+                  {procesandoVenta ? 'Procesando...' : `Confirmar Venta — $${calcularTotal().toFixed(2)}`}
+                </button>
+
+                <button onClick={cerrarFormulario}
+                  className="w-full bg-gray-200 dark:bg-gray-700 hover:bg-gray-300 dark:hover:bg-gray-600 text-gray-800 dark:text-gray-100 py-2 rounded-lg text-sm transition-colors">
+                  Cancelar
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* ══════════════════════════════════════════
+            FORMULARIO ENTRADA / SALIDA
+        ══════════════════════════════════════════ */}
+        {(modoFormulario === 'ENTRADA' || modoFormulario === 'SALIDA') && (
+          <form onSubmit={handleSubmitMovimiento} className="bg-white dark:bg-gray-800 rounded-lg shadow-md overflow-hidden">
+            {/* Cabecera */}
+            <div className={`px-6 py-4 flex items-center justify-between ${modoFormulario === 'ENTRADA' ? 'bg-blue-600' : 'bg-orange-500'}`}>
+              <h2 className="text-white font-bold text-xl flex items-center gap-2">
+                {modoFormulario === 'ENTRADA'
+                  ? <><TrendingUp className="w-6 h-6" /> Entrada de Stock</>
+                  : <><TrendingDown className="w-6 h-6" /> Salida de Stock</>
+                }
+              </h2>
+              <button type="button" onClick={cerrarFormulario} className="text-white/80 hover:text-white transition-colors">
+                <X className="w-6 h-6" />
+              </button>
+            </div>
+
+            <div className="p-6 space-y-4">
+              {/* Buscador de producto */}
+              <div className="relative">
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Buscar Producto *</label>
+                <div className="relative">
+                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 w-5 h-5" />
+                  <input type="text" value={busquedaProducto}
+                    onChange={e => { setBusquedaProducto(e.target.value); if (formData.productoId) limpiarSeleccion(); }}
+                    placeholder="Nombre, código de producto o código de barras..."
+                    className="w-full pl-10 pr-10 py-2 border border-gray-300 dark:border-gray-600 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 text-gray-900 dark:text-gray-100 dark:bg-gray-700"
+                    autoFocus
+                  />
+                  {buscandoSugerencias && (
+                    <div className="absolute right-3 top-1/2 -translate-y-1/2">
+                      <div className="w-4 h-4 border-2 border-blue-500 border-t-transparent rounded-full animate-spin" />
+                    </div>
+                  )}
+                  {busquedaProducto && !buscandoSugerencias && (
+                    <button type="button" onClick={limpiarSeleccion} className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600">
+                      <X className="w-4 h-4" />
+                    </button>
+                  )}
+                </div>
+                {mostrarSugerencias && sugerencias.length > 0 && (
+                  <div className="absolute z-10 w-full mt-1 bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-md shadow-lg max-h-60 overflow-y-auto">
+                    {sugerencias.map(p => (
+                      <button key={p.id} type="button" onClick={() => seleccionarProducto(p)}
+                        className="w-full text-left px-4 py-2 hover:bg-gray-100 dark:hover:bg-gray-600 border-b dark:border-gray-600 last:border-b-0">
+                        <div className="font-medium text-gray-900 dark:text-gray-100">{p.nombre}</div>
+                        <div className="text-sm text-gray-500 dark:text-gray-400">
+                          {p.codigoProducto && `Código: ${p.codigoProducto} | `}Stock: {p.stock} | Precio: ${p.precio.toFixed(2)}
+                        </div>
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Cantidad *</label>
+                  <input type="number" value={formData.cantidad} onChange={e => setFormData({ ...formData, cantidad: e.target.value })}
+                    required min="1"
+                    className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 text-gray-900 dark:text-gray-100 dark:bg-gray-700" />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1 flex items-center gap-1">
+                    <Calendar className="w-4 h-4" /> Fecha *
+                  </label>
+                  <input type="date" value={formData.fecha} onChange={e => setFormData({ ...formData, fecha: e.target.value })}
+                    required max={new Date().toISOString().split('T')[0]}
+                    className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 text-gray-900 dark:text-gray-100 dark:bg-gray-700" />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1 flex items-center gap-1">
+                    🕐 Hora
+                  </label>
+                  <div className="flex gap-2">
+                    <input
+                      type="time"
+                      value={formData.hora}
+                      onChange={e => setFormData({ ...formData, hora: e.target.value, horaAuto: false })}
+                      disabled={formData.horaAuto}
+                      className="flex-1 px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 text-gray-900 dark:text-gray-100 dark:bg-gray-700 disabled:opacity-50"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const ahora = new Date().toTimeString().slice(0, 5);
+                        setFormData({ ...formData, hora: ahora, horaAuto: !formData.horaAuto });
+                      }}
+                      className={`px-3 py-2 rounded-md text-xs font-semibold border transition-colors whitespace-nowrap ${
+                        formData.horaAuto
+                          ? 'bg-blue-600 text-white border-blue-600'
+                          : 'bg-white dark:bg-gray-700 text-gray-600 dark:text-gray-300 border-gray-300 dark:border-gray-600 hover:bg-gray-50'
+                      }`}
+                    >
+                      {formData.horaAuto ? '⚡ Ahora' : 'Manual'}
+                    </button>
+                  </div>
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Motivo</label>
+                  <input type="text" value={formData.motivo} onChange={e => setFormData({ ...formData, motivo: e.target.value })}
+                    placeholder={modoFormulario === 'ENTRADA' ? 'Ej: Compra a proveedor...' : 'Ej: Ajuste, pérdida...'}
+                    className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 text-gray-900 dark:text-gray-100 dark:bg-gray-700" />
+                </div>
+              </div>
+
+              {/* Selector de usuario (solo admin) */}
+              {isAdmin() && (
+                <div className="bg-purple-50 dark:bg-purple-900/20 border border-purple-200 dark:border-purple-700 rounded-lg p-3">
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1 flex items-center gap-1">
+                    <UserCircle className="w-4 h-4" /> Usuario que registra
+                  </label>
+                  <select value={formData.usuarioId} onChange={e => setFormData({ ...formData, usuarioId: e.target.value })}
+                    className="w-full px-3 py-2 border border-purple-300 dark:border-purple-600 rounded-md focus:outline-none focus:ring-2 focus:ring-purple-500 text-gray-900 dark:text-gray-100 dark:bg-gray-700 text-sm">
+                    <option value="">Yo (usuario actual)</option>
+                    {usuarios.map(u => (
+                      <option key={u.id} value={u.id}>{u.nombre} — {u.rol === 'ADMINISTRADOR' ? 'Admin' : 'Empleado'}</option>
+                    ))}
+                  </select>
                 </div>
               )}
-            </div>
 
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-              <div>
-                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Tipo de Movimiento *</label>
-                <select value={formData.tipo} onChange={(e) => setFormData({ ...formData, tipo: e.target.value })} required
-                  className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 text-gray-900 dark:text-gray-100 dark:bg-gray-700">
-                  <option value="ENTRADA">📦 Entrada de Stock</option>
-                  <option value="SALIDA">📤 Salida de Stock</option>
-                  <option value="VENTA">💰 Venta</option>
-                </select>
+              <div className="flex gap-3 pt-2">
+                <button type="submit" disabled={!formData.productoId}
+                  className={`flex-1 text-white py-3 px-4 rounded-md transition-colors font-semibold disabled:bg-gray-400 ${modoFormulario === 'ENTRADA' ? 'bg-blue-600 hover:bg-blue-700' : 'bg-orange-500 hover:bg-orange-600'}`}>
+                  {modoFormulario === 'ENTRADA' ? '📦 Registrar Entrada' : '📤 Registrar Salida'}
+                </button>
+                <button type="button" onClick={cerrarFormulario}
+                  className="bg-gray-300 dark:bg-gray-600 hover:bg-gray-400 dark:hover:bg-gray-500 text-gray-800 dark:text-gray-100 py-3 px-4 rounded-md transition-colors">
+                  Cancelar
+                </button>
               </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Cantidad *</label>
-                <input type="number" value={formData.cantidad} onChange={(e) => setFormData({ ...formData, cantidad: e.target.value })}
-                  required min="1"
-                  className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 text-gray-900 dark:text-gray-100 dark:bg-gray-700" />
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1 flex items-center gap-1">
-                  <Calendar className="w-4 h-4" /> Fecha *
-                </label>
-                <input type="date" value={formData.fecha} onChange={(e) => setFormData({ ...formData, fecha: e.target.value })}
-                  required max={new Date().toISOString().split('T')[0]}
-                  className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 text-gray-900 dark:text-gray-100 dark:bg-gray-700" />
-              </div>
-            </div>
-
-            {/* ✅ NUEVO: Selector de usuario (solo para admin) */}
-            {isAdmin() && (
-              <div className="bg-purple-50 dark:bg-purple-900/20 border border-purple-200 dark:border-purple-700 rounded-lg p-4">
-                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2 flex items-center gap-2">
-                  <UserCircle className="w-4 h-4" /> Usuario que registra el movimiento
-                </label>
-                <select 
-                  value={formData.usuarioId} 
-                  onChange={(e) => setFormData({ ...formData, usuarioId: e.target.value })}
-                  className="w-full px-3 py-2 border border-purple-300 dark:border-purple-600 rounded-md focus:outline-none focus:ring-2 focus:ring-purple-500 text-gray-900 dark:text-gray-100 dark:bg-gray-700">
-                  <option value="">Yo (usuario actual)</option>
-                  {usuarios.map(u => (
-                    <option key={u.id} value={u.id}>{u.nombre} - {u.rol === 'ADMINISTRADOR' ? 'Admin' : 'Empleado'}</option>
-                  ))}
-                </select>
-                <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
-                  Si no seleccionas ninguno, se registrará con tu usuario actual
-                </p>
-              </div>
-            )}
-
-            {/* Método de pago solo para VENTA */}
-            {formData.tipo === 'VENTA' && (
-              <div className="bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-700 rounded-lg p-4">
-                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2 flex items-center gap-2">
-                  <CreditCard className="w-4 h-4" /> Método de Pago *
-                </label>
-                <select value={formData.metodoPago} onChange={(e) => setFormData({ ...formData, metodoPago: e.target.value })}
-                  required={formData.tipo === 'VENTA'}
-                  className="w-full px-3 py-2 border border-green-300 dark:border-green-600 rounded-md focus:outline-none focus:ring-2 focus:ring-green-500 text-gray-900 dark:text-gray-100 dark:bg-gray-700">
-                  <option value="EFECTIVO">💵 Efectivo</option>
-                  <option value="TARJETA_DEBITO">💳 Tarjeta de Débito</option>
-                  <option value="TARJETA_CREDITO">💳 Tarjeta de Crédito</option>
-                  <option value="TRANSFERENCIA">🏦 Transferencia</option>
-                  <option value="QR">📱 Código QR</option>
-                </select>
-              </div>
-            )}
-
-            <div>
-              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                Motivo {formData.tipo === 'VENTA' ? '(opcional)' : ''}
-              </label>
-              <input type="text" value={formData.motivo} onChange={(e) => setFormData({ ...formData, motivo: e.target.value })}
-                placeholder={
-                  formData.tipo === 'ENTRADA' ? 'Ej: Compra a proveedor, Devolución...' :
-                  formData.tipo === 'SALIDA' ? 'Ej: Ajuste, Pérdida, Devolución...' :
-                  'Ej: Cliente Juan Pérez...'
-                }
-                className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 text-gray-900 dark:text-gray-100 dark:bg-gray-700" />
-            </div>
-
-            <div className="flex gap-4 pt-2">
-              <button type="submit" disabled={!formData.productoId}
-                className="flex-1 bg-blue-600 hover:bg-blue-700 disabled:bg-gray-400 text-white py-3 px-4 rounded-md transition-colors font-semibold">
-                {formData.tipo === 'VENTA' ? '💰 Registrar Venta' : '📝 Registrar Movimiento'}
-              </button>
-              <button type="button"
-                onClick={() => { 
-                  setShowForm(false); 
-                  setFormData({ 
-                    productoId: '', 
-                    productoNombre: '', 
-                    tipo: 'ENTRADA', 
-                    cantidad: '', 
-                    motivo: '',
-                    fecha: new Date().toISOString().split('T')[0],
-                    metodoPago: 'EFECTIVO',
-                    usuarioId: ''
-                  }); 
-                  setBusquedaProducto(''); 
-                }}
-                className="bg-gray-300 dark:bg-gray-600 hover:bg-gray-400 dark:hover:bg-gray-500 text-gray-800 dark:text-gray-100 py-3 px-4 rounded-md transition-colors">
-                Cancelar
-              </button>
             </div>
           </form>
         )}
 
-        {/* Filtros */}
+        {/* ══════════════════════════════════════════
+            HISTORIAL / FILTROS
+        ══════════════════════════════════════════ */}
         <div className="bg-white dark:bg-gray-800 rounded-lg shadow-md p-4 space-y-4">
           <div className="flex items-center justify-between gap-4">
             <div className="relative flex-1">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 w-5 h-5" />
               <input type="text" placeholder="Filtrar por producto, categoría o motivo..."
-                value={busquedaInput} onChange={(e) => setBusquedaInput(e.target.value)}
+                value={busquedaInput} onChange={e => setBusquedaInput(e.target.value)}
                 className="w-full pl-10 pr-4 py-2 border border-gray-300 dark:border-gray-600 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 text-gray-900 dark:text-gray-100 dark:bg-gray-700"
               />
               {busquedaInput && (
@@ -438,8 +878,7 @@ export default function MovimientosPage() {
                 </button>
               )}
             </div>
-            <button
-              onClick={() => setMostrarFiltros(!mostrarFiltros)}
+            <button onClick={() => setMostrarFiltros(!mostrarFiltros)}
               className="flex items-center gap-2 px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-md hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors whitespace-nowrap">
               <Filter className="w-5 h-5" />
               Filtros
@@ -452,17 +891,17 @@ export default function MovimientosPage() {
               <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                 <div>
                   <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Fecha desde</label>
-                  <input type="date" value={filtroFechaInicio} onChange={(e) => setFiltroFechaInicio(e.target.value)}
+                  <input type="date" value={filtroFechaInicio} onChange={e => setFiltroFechaInicio(e.target.value)}
                     className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 text-gray-900 dark:text-gray-100 dark:bg-gray-700" />
                 </div>
                 <div>
                   <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Fecha hasta</label>
-                  <input type="date" value={filtroFechaFin} onChange={(e) => setFiltroFechaFin(e.target.value)}
+                  <input type="date" value={filtroFechaFin} onChange={e => setFiltroFechaFin(e.target.value)}
                     className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 text-gray-900 dark:text-gray-100 dark:bg-gray-700" />
                 </div>
                 <div>
                   <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Tipo</label>
-                  <select value={filtroTipo} onChange={(e) => setFiltroTipo(e.target.value)}
+                  <select value={filtroTipo} onChange={e => setFiltroTipo(e.target.value)}
                     className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 text-gray-900 dark:text-gray-100 dark:bg-gray-700">
                     <option value="">Todos</option>
                     <option value="ENTRADA">Entrada</option>
@@ -484,7 +923,9 @@ export default function MovimientosPage() {
           </div>
         </div>
 
-        {/* Tabla de movimientos */}
+        {/* ══════════════════════════════════════════
+            TABLA DE HISTORIAL
+        ══════════════════════════════════════════ */}
         {movimientosFiltrados.length === 0 ? (
           <div className="bg-white dark:bg-gray-800 p-8 rounded-lg shadow-md text-center">
             <ShoppingCart className="w-16 h-16 text-gray-400 mx-auto mb-4" />
@@ -506,6 +947,7 @@ export default function MovimientosPage() {
                     <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Motivo</th>
                     <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Usuario</th>
                     <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Stock</th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Precio</th>
                     {isAdmin() && <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Acciones</th>}
                   </tr>
                 </thead>
@@ -563,16 +1005,21 @@ export default function MovimientosPage() {
                       <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900 dark:text-gray-100">
                         {m.producto.stock}
                       </td>
+                      <td className="px-6 py-4 whitespace-nowrap">
+                        {m.tipo === 'VENTA' && m.venta?.total != null ? (
+                          <span className="text-sm font-bold text-green-600 dark:text-green-400">
+                            +${Number(m.venta.total).toFixed(2)}
+                          </span>
+                        ) : (
+                          <span className="text-xs text-gray-400">—</span>
+                        )}
+                      </td>
                       {isAdmin() && (
                         <td className="px-6 py-4 whitespace-nowrap">
                           {!m.cancelado ? (
                             <div className="flex gap-2">
-                              {/* ✅ NUEVO: Botón editar */}
-                              <button 
-                                onClick={() => abrirEdicion(m)}
-                                className="flex items-center gap-1 text-xs text-blue-600 dark:text-blue-400 hover:text-blue-800 dark:hover:text-blue-300 border border-blue-300 dark:border-blue-700 px-2 py-1 rounded-md hover:bg-blue-50 dark:hover:bg-blue-900/20 transition-colors"
-                                title="Editar movimiento"
-                              >
+                              <button onClick={() => abrirEdicion(m)}
+                                className="flex items-center gap-1 text-xs text-blue-600 dark:text-blue-400 hover:text-blue-800 dark:hover:text-blue-300 border border-blue-300 dark:border-blue-700 px-2 py-1 rounded-md hover:bg-blue-50 dark:hover:bg-blue-900/20 transition-colors">
                                 <Edit className="w-3 h-3" /> Editar
                               </button>
                               <button onClick={() => { setModalCancelar(m); setMotivoCancelacion(''); }}
@@ -591,7 +1038,9 @@ export default function MovimientosPage() {
           </div>
         )}
 
-        {/* ✅ NUEVO: Modal editar movimiento */}
+        {/* ══════════════════════════════════════════
+            MODAL EDITAR MOVIMIENTO
+        ══════════════════════════════════════════ */}
         {modalEditar && (
           <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
             <div className="bg-white dark:bg-gray-800 rounded-lg shadow-xl max-w-md w-full p-6">
@@ -601,73 +1050,45 @@ export default function MovimientosPage() {
                 </div>
                 <div className="flex-1">
                   <h2 className="text-lg font-bold text-gray-800 dark:text-gray-100">Editar Movimiento</h2>
-                  <p className="text-sm text-gray-600 dark:text-gray-400 mt-1">
-                    Producto: {modalEditar.producto.nombre}
-                  </p>
+                  <p className="text-sm text-gray-600 dark:text-gray-400 mt-1">Producto: {modalEditar.producto.nombre}</p>
                 </div>
                 <button onClick={() => setModalEditar(null)} className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-300">
                   <X className="w-5 h-5" />
                 </button>
               </div>
-
               <div className="space-y-4">
                 <div>
                   <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Cantidad *</label>
-                  <input 
-                    type="number" 
-                    value={editForm.cantidad} 
-                    onChange={(e) => setEditForm({ ...editForm, cantidad: e.target.value })}
-                    min="1"
-                    className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 text-gray-900 dark:text-gray-100 dark:bg-gray-700"
-                  />
+                  <input type="number" value={editForm.cantidad} onChange={e => setEditForm({ ...editForm, cantidad: e.target.value })}
+                    min="1" className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 text-gray-900 dark:text-gray-100 dark:bg-gray-700" />
                 </div>
-
                 <div>
                   <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Motivo</label>
-                  <input 
-                    type="text" 
-                    value={editForm.motivo} 
-                    onChange={(e) => setEditForm({ ...editForm, motivo: e.target.value })}
-                    placeholder="Opcional"
-                    className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 text-gray-900 dark:text-gray-100 dark:bg-gray-700"
-                  />
+                  <input type="text" value={editForm.motivo} onChange={e => setEditForm({ ...editForm, motivo: e.target.value })}
+                    placeholder="Opcional" className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 text-gray-900 dark:text-gray-100 dark:bg-gray-700" />
                 </div>
-
                 <div>
                   <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Fecha</label>
-                  <input 
-                    type="date" 
-                    value={editForm.fecha} 
-                    onChange={(e) => setEditForm({ ...editForm, fecha: e.target.value })}
+                  <input type="date" value={editForm.fecha} onChange={e => setEditForm({ ...editForm, fecha: e.target.value })}
                     max={new Date().toISOString().split('T')[0]}
-                    className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 text-gray-900 dark:text-gray-100 dark:bg-gray-700"
-                  />
+                    className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 text-gray-900 dark:text-gray-100 dark:bg-gray-700" />
                 </div>
-
                 <div>
                   <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Usuario</label>
-                  <select 
-                    value={editForm.usuarioId} 
-                    onChange={(e) => setEditForm({ ...editForm, usuarioId: e.target.value })}
+                  <select value={editForm.usuarioId} onChange={e => setEditForm({ ...editForm, usuarioId: e.target.value })}
                     className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 text-gray-900 dark:text-gray-100 dark:bg-gray-700">
                     <option value="">Sin usuario asignado</option>
-                    {usuarios.map(u => (
-                      <option key={u.id} value={u.id}>{u.nombre}</option>
-                    ))}
+                    {usuarios.map(u => <option key={u.id} value={u.id}>{u.nombre}</option>)}
                   </select>
                 </div>
               </div>
-
               <div className="flex gap-3 mt-6">
-                <button 
-                  onClick={guardarEdicion} 
-                  disabled={guardandoEdicion}
+                <button onClick={guardarEdicion} disabled={guardandoEdicion}
                   className="flex-1 bg-blue-600 hover:bg-blue-700 disabled:bg-gray-400 text-white py-2 px-4 rounded-md transition-colors font-semibold flex items-center justify-center gap-2">
                   <Save className="w-4 h-4" />
                   {guardandoEdicion ? 'Guardando...' : 'Guardar Cambios'}
                 </button>
-                <button 
-                  onClick={() => setModalEditar(null)}
+                <button onClick={() => setModalEditar(null)}
                   className="flex-1 bg-gray-300 dark:bg-gray-600 hover:bg-gray-400 dark:hover:bg-gray-500 text-gray-800 dark:text-gray-100 py-2 px-4 rounded-md transition-colors">
                   Cancelar
                 </button>
@@ -676,7 +1097,9 @@ export default function MovimientosPage() {
           </div>
         )}
 
-        {/* Modal cancelación */}
+        {/* ══════════════════════════════════════════
+            MODAL CANCELAR MOVIMIENTO
+        ══════════════════════════════════════════ */}
         {modalCancelar && (
           <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
             <div className="bg-white dark:bg-gray-800 rounded-lg shadow-xl max-w-md w-full p-6">
@@ -702,7 +1125,7 @@ export default function MovimientosPage() {
               </div>
               <div className="mb-4">
                 <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Motivo de cancelación (opcional)</label>
-                <input type="text" value={motivoCancelacion} onChange={(e) => setMotivoCancelacion(e.target.value)}
+                <input type="text" value={motivoCancelacion} onChange={e => setMotivoCancelacion(e.target.value)}
                   placeholder="Ej: Error de carga, devolución rechazada..."
                   className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md focus:outline-none focus:ring-2 focus:ring-red-500 text-gray-900 dark:text-gray-100 dark:bg-gray-700"
                 />
@@ -720,6 +1143,79 @@ export default function MovimientosPage() {
             </div>
           </div>
         )}
+
+      {/* ── Modal ítem manual POS ── */}
+      {modalManualPos && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white dark:bg-gray-800 rounded-lg shadow-xl max-w-sm w-full p-6">
+            <div className="flex items-center justify-between mb-4">
+              <h2 className="text-lg font-bold text-gray-800 dark:text-gray-100 flex items-center gap-2">
+                <Tag className="w-5 h-5 text-orange-500" /> Ítem manual — Varios
+              </h2>
+              <button onClick={() => setModalManualPos(false)} className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-300">
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+            <p className="text-xs text-gray-500 dark:text-gray-400 mb-4">
+              Se registra en la categoría <strong>Varios</strong> y suma al total de ingresos y ventas.
+            </p>
+            <div className="space-y-3">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Descripción *</label>
+                <input
+                  type="text"
+                  placeholder="Ej: Anillos, Aritos, Trabas..."
+                  value={itemManualDesc}
+                  onChange={e => setItemManualDesc(e.target.value)}
+                  onKeyDown={e => e.key === 'Enter' && agregarItemManualPos()}
+                  autoFocus
+                  className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md focus:outline-none focus:ring-2 focus:ring-orange-500 text-gray-900 dark:text-gray-100 dark:bg-gray-700"
+                />
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Precio *</label>
+                  <input
+                    type="number"
+                    placeholder="0.00"
+                    value={itemManualPrecio}
+                    onChange={e => setItemManualPrecio(e.target.value)}
+                    min="0" step="0.01"
+                    className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md focus:outline-none focus:ring-2 focus:ring-orange-500 text-gray-900 dark:text-gray-100 dark:bg-gray-700"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Cantidad *</label>
+                  <input
+                    type="number"
+                    value={itemManualCant}
+                    onChange={e => setItemManualCant(e.target.value)}
+                    min="1"
+                    className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md focus:outline-none focus:ring-2 focus:ring-orange-500 text-gray-900 dark:text-gray-100 dark:bg-gray-700"
+                  />
+                </div>
+              </div>
+              {itemManualPrecio && itemManualCant && (
+                <p className="text-sm text-center font-semibold text-orange-600 dark:text-orange-400">
+                  Subtotal: ${(parseFloat(itemManualPrecio || 0) * parseInt(itemManualCant || 1)).toFixed(2)}
+                </p>
+              )}
+            </div>
+            <div className="flex gap-3 mt-5">
+              <button onClick={agregarItemManualPos}
+                className="flex-1 bg-orange-500 hover:bg-orange-600 text-white py-2 px-4 rounded-md transition-colors font-semibold flex items-center justify-center gap-2">
+                <Plus className="w-4 h-4" /> Agregar al carrito
+              </button>
+              <button onClick={() => setModalManualPos(false)}
+                className="flex-1 bg-gray-300 dark:bg-gray-600 hover:bg-gray-400 dark:hover:bg-gray-500 text-gray-800 dark:text-gray-100 py-2 px-4 rounded-md transition-colors">
+                Cancelar
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+
       </div>
     </PageWrapper>
   );

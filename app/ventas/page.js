@@ -1,9 +1,10 @@
 'use client';
 
 import { useEffect, useState, useCallback } from 'react';
-import { Search, Plus, Minus, Trash2, ShoppingCart, DollarSign, User, CreditCard, PlusCircle, ChevronLeft, ChevronRight, Edit, AlertTriangle, X, Save, Calendar } from 'lucide-react';
+import { Search, Plus, Minus, Trash2, ShoppingCart, DollarSign, User, CreditCard, PlusCircle, ChevronLeft, ChevronRight, Edit, AlertTriangle, X, Save, Calendar, UserCircle, Tag } from 'lucide-react';
 import Image from 'next/image';
 import PageWrapper from '@/components/PageWrapper';
+import { useAuth } from '@/contexts/AuthContext';
 
 const PAGE_SIZE = 12;
 
@@ -17,6 +18,8 @@ function useDebounce(value, delay) {
 }
 
 export default function VentasPage() {
+  const { isAdmin } = useAuth();
+
   const [productos, setProductos] = useState([]);
   const [totalProductos, setTotalProductos] = useState(0);
   const [totalPaginas, setTotalPaginas] = useState(1);
@@ -28,8 +31,21 @@ export default function VentasPage() {
   const [metodoPago, setMetodoPago] = useState('EFECTIVO');
   const [clienteNombre, setClienteNombre] = useState('');
   const [clienteDni, setClienteDni] = useState('');
-  const [fechaVenta, setFechaVenta] = useState(new Date().toISOString().split('T')[0]); // ✅ NUEVO
+  const [fechaVenta, setFechaVenta] = useState(new Date().toISOString().split('T')[0]);
   const [procesando, setProcesando] = useState(false);
+  const [horaVenta, setHoraVenta] = useState(() => new Date().toTimeString().slice(0, 5));
+  const [horaVentaAuto, setHoraVentaAuto] = useState(true);
+
+  // ── Selector de vendedor (solo admin) ──
+  const [usuarios, setUsuarios] = useState([]);
+  const [vendedorId, setVendedorId] = useState('');
+
+  // ── Modal ítem manual ──
+  const [modalManual, setModalManual] = useState(false);
+  const [itemManualDesc, setItemManualDesc] = useState('');
+  const [itemManualPrecio, setItemManualPrecio] = useState('');
+  const [itemManualCant, setItemManualCant] = useState('1');
+
   const [mostrarModalProducto, setMostrarModalProducto] = useState(false);
   const [categorias, setCategorias] = useState([]);
   const [proveedores, setProveedores] = useState([]);
@@ -62,7 +78,10 @@ export default function VentasPage() {
     fetchProductos(1, '');
     fetch('/api/categorias').then(r => r.json()).then(setCategorias).catch(console.error);
     fetch('/api/proveedores').then(r => r.json()).then(setProveedores).catch(console.error);
-  }, [fetchProductos]);
+    if (isAdmin()) {
+      fetch('/api/usuarios').then(r => r.json()).then(data => setUsuarios(data.filter(u => u.activo))).catch(console.error);
+    }
+  }, [fetchProductos, isAdmin]);
 
   useEffect(() => {
     setPaginaActual(1);
@@ -78,49 +97,89 @@ export default function VentasPage() {
       setCarrito(carrito.map(i => i.productoId === producto.id ? { ...i, cantidad: i.cantidad + 1 } : i));
     } else {
       if (producto.stock === 0) { alert('Producto sin stock'); return; }
-      setCarrito([...carrito, { productoId: producto.id, nombre: producto.nombre, precioUnit: producto.precio, cantidad: 1, stock: producto.stock }]);
+      setCarrito([...carrito, { productoId: producto.id, nombre: producto.nombre, precioUnit: producto.precio, cantidad: 1, stock: producto.stock, esManual: false }]);
     }
   };
 
-  const actualizarCantidad = (productoId, nuevaCantidad) => {
-    const item = carrito.find(i => i.productoId === productoId);
-    if (nuevaCantidad <= 0) { eliminarDelCarrito(productoId); return; }
-    if (nuevaCantidad > item.stock) { alert('No hay suficiente stock disponible'); return; }
-    setCarrito(carrito.map(i => i.productoId === productoId ? { ...i, cantidad: nuevaCantidad } : i));
+  // ── Agregar ítem manual al carrito ──
+  const agregarItemManual = () => {
+    const precio = parseFloat(itemManualPrecio);
+    const cant = parseInt(itemManualCant);
+    if (!itemManualDesc.trim()) { alert('Escribí una descripción'); return; }
+    if (!precio || precio <= 0) { alert('Ingresá un precio válido'); return; }
+    if (!cant || cant <= 0) { alert('Ingresá una cantidad válida'); return; }
+
+    // Cada ítem manual tiene un id único para poder editarlo en el carrito
+    const idTemporal = `manual_${Date.now()}_${Math.random()}`;
+    setCarrito(prev => [...prev, {
+      id: idTemporal,
+      productoId: null,
+      nombre: itemManualDesc.trim(),
+      precioUnit: precio,
+      cantidad: cant,
+      stock: Infinity,
+      esManual: true,
+      descripcion: itemManualDesc.trim(),
+    }]);
+
+    // Reset modal
+    setItemManualDesc('');
+    setItemManualPrecio('');
+    setItemManualCant('1');
+    setModalManual(false);
   };
 
-  const eliminarDelCarrito = (productoId) => setCarrito(carrito.filter(i => i.productoId !== productoId));
+  const actualizarCantidad = (idItem, nuevaCantidad) => {
+    const item = carrito.find(i => (i.esManual ? i.id : i.productoId) === idItem);
+    if (nuevaCantidad <= 0) { eliminarDelCarrito(idItem); return; }
+    if (!item.esManual && nuevaCantidad > item.stock) { alert('No hay suficiente stock disponible'); return; }
+    setCarrito(carrito.map(i => (i.esManual ? i.id : i.productoId) === idItem ? { ...i, cantidad: nuevaCantidad } : i));
+  };
+
+  const eliminarDelCarrito = (idItem) =>
+    setCarrito(carrito.filter(i => (i.esManual ? i.id : i.productoId) !== idItem));
+
   const calcularTotal = () => carrito.reduce((sum, i) => sum + i.precioUnit * i.cantidad, 0);
 
   const finalizarVenta = async () => {
     if (!carrito.length) { alert('El carrito está vacío'); return; }
     setProcesando(true);
     try {
+      const payload = {
+        items: carrito.map(i => i.esManual
+          ? { esManual: true, descripcion: i.descripcion, precioUnit: i.precioUnit, cantidad: i.cantidad }
+          : { productoId: i.productoId, precioUnit: i.precioUnit, cantidad: i.cantidad }
+        ),
+        metodoPago,
+        clienteNombre: clienteNombre || null,
+        clienteDni: clienteDni || null,
+        fecha: fechaVenta,
+        hora: horaVentaAuto ? null : horaVenta,
+      };
+      if (isAdmin() && vendedorId) {
+        payload.usuarioIdSeleccionado = vendedorId;
+      }
       const res = await fetch('/api/ventas', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ 
-          items: carrito, 
-          metodoPago, 
-          clienteNombre: clienteNombre || null, 
-          clienteDni: clienteDni || null,
-          fecha: fechaVenta // ✅ NUEVO: Enviar fecha
-        }),
+        body: JSON.stringify(payload),
       });
       if (!res.ok) { const e = await res.json(); throw new Error(e.error); }
       const venta = await res.json();
       alert(`Venta #${venta.id} realizada!\nTotal: $${venta.total.toFixed(2)}\nFecha: ${new Date(venta.createdAt).toLocaleDateString('es-AR')}`);
-      setCarrito([]); 
-      setClienteNombre(''); 
-      setClienteDni(''); 
-      setFechaVenta(new Date().toISOString().split('T')[0]); // Reset fecha
+      setCarrito([]);
+      setClienteNombre('');
+      setClienteDni('');
+      setFechaVenta(new Date().toISOString().split('T')[0]);
+      setVendedorId('');
+      setHoraVenta(new Date().toTimeString().slice(0, 5));
+      setHoraVentaAuto(true);
       setBusqueda('');
       fetchProductos(paginaActual, busquedaDebounced);
     } catch (err) { alert(err.message || 'Error al procesar la venta'); }
     finally { setProcesando(false); }
   };
 
-  // ── Abrir modal edición ──
   const abrirEdicion = (e, producto) => {
     e.stopPropagation();
     setModalEditar(producto);
@@ -132,7 +191,6 @@ export default function VentasPage() {
     });
   };
 
-  // ── Guardar edición ──
   const guardarEdicion = async () => {
     if (!editForm.nombre || !editForm.precio) { alert('Nombre y precio son requeridos'); return; }
     setGuardandoEdicion(true);
@@ -243,11 +301,9 @@ export default function VentasPage() {
                         : 'hover:shadow-lg hover:border-jmr-primary dark:hover:border-jmr-accent cursor-pointer'
                     }`}>
 
-                    <button
-                      onClick={(e) => abrirEdicion(e, producto)}
+                    <button onClick={(e) => abrirEdicion(e, producto)}
                       className="absolute top-2 right-2 z-10 bg-white dark:bg-gray-700 border border-gray-200 dark:border-gray-600 p-1 rounded-md opacity-0 group-hover:opacity-100 transition-opacity hover:bg-blue-50 dark:hover:bg-blue-900/30 hover:border-blue-400"
-                      title="Editar producto"
-                    >
+                      title="Editar producto">
                       <Edit className="w-3 h-3 sm:w-4 sm:h-4 text-blue-600 dark:text-blue-400" />
                     </button>
 
@@ -297,22 +353,35 @@ export default function VentasPage() {
             <div className="space-y-2 max-h-48 sm:max-h-64 overflow-y-auto mb-3 sm:mb-4">
               {carrito.length === 0 ? (
                 <p className="text-gray-500 dark:text-gray-400 text-center py-4 text-sm">Carrito vacío</p>
-              ) : carrito.map((item) => (
-                <div key={item.productoId} className="flex items-center justify-between border-b dark:border-gray-700 pb-2 gap-2">
-                  <div className="flex-1 min-w-0">
-                    <p className="text-xs sm:text-sm font-medium text-gray-900 dark:text-gray-100 truncate">{item.nombre}</p>
-                    <p className="text-xs text-gray-500">${item.precioUnit.toFixed(2)}</p>
+              ) : carrito.map((item) => {
+                const itemId = item.esManual ? item.id : item.productoId;
+                return (
+                  <div key={itemId} className="flex items-center justify-between border-b dark:border-gray-700 pb-2 gap-2">
+                    <div className="flex-1 min-w-0">
+                      <p className="text-xs sm:text-sm font-medium text-gray-900 dark:text-gray-100 truncate flex items-center gap-1">
+                        {item.esManual && <Tag className="w-3 h-3 text-orange-500 flex-shrink-0" />}
+                        {item.nombre}
+                      </p>
+                      <p className="text-xs text-gray-500">${item.precioUnit.toFixed(2)}</p>
+                    </div>
+                    <div className="flex items-center gap-1 sm:gap-2">
+                      <button onClick={() => actualizarCantidad(itemId, item.cantidad - 1)} className="bg-gray-200 dark:bg-gray-700 hover:bg-gray-300 p-1 rounded"><Minus className="w-3 h-3" /></button>
+                      <span className="w-6 text-center font-semibold text-xs sm:text-sm">{item.cantidad}</span>
+                      <button onClick={() => actualizarCantidad(itemId, item.cantidad + 1)} className="bg-gray-200 dark:bg-gray-700 hover:bg-gray-300 p-1 rounded"><Plus className="w-3 h-3" /></button>
+                      <button onClick={() => eliminarDelCarrito(itemId)} className="text-red-600 p-1"><Trash2 className="w-3 h-3" /></button>
+                    </div>
+                    <p className="font-semibold text-xs sm:text-sm whitespace-nowrap">${(item.precioUnit * item.cantidad).toFixed(2)}</p>
                   </div>
-                  <div className="flex items-center gap-1 sm:gap-2">
-                    <button onClick={() => actualizarCantidad(item.productoId, item.cantidad - 1)} className="bg-gray-200 dark:bg-gray-700 hover:bg-gray-300 p-1 rounded"><Minus className="w-3 h-3" /></button>
-                    <span className="w-6 text-center font-semibold text-xs sm:text-sm">{item.cantidad}</span>
-                    <button onClick={() => actualizarCantidad(item.productoId, item.cantidad + 1)} className="bg-gray-200 dark:bg-gray-700 hover:bg-gray-300 p-1 rounded"><Plus className="w-3 h-3" /></button>
-                    <button onClick={() => eliminarDelCarrito(item.productoId)} className="text-red-600 p-1"><Trash2 className="w-3 h-3" /></button>
-                  </div>
-                  <p className="font-semibold text-xs sm:text-sm whitespace-nowrap">${(item.precioUnit * item.cantidad).toFixed(2)}</p>
-                </div>
-              ))}
+                );
+              })}
             </div>
+
+            {/* Botón ítem manual */}
+            <button onClick={() => setModalManual(true)}
+              className="w-full mb-3 border-2 border-dashed border-orange-300 dark:border-orange-600 text-orange-600 dark:text-orange-400 hover:bg-orange-50 dark:hover:bg-orange-900/20 py-2 rounded-lg text-sm font-medium flex items-center justify-center gap-2 transition-colors">
+              <Tag className="w-4 h-4" />
+              + Ítem manual (Varios)
+            </button>
 
             <div className="border-t dark:border-gray-700 pt-3 mb-3">
               <div className="flex justify-between items-center text-xl sm:text-2xl font-bold">
@@ -335,18 +404,43 @@ export default function VentasPage() {
               </select>
             </div>
 
-            {/* ✅ NUEVO: Campo de fecha */}
             <div className="space-y-2 mb-3">
               <label className="block text-xs sm:text-sm font-medium text-gray-700 dark:text-gray-300">
                 <Calendar className="w-3 h-3 inline mr-1" />Fecha de Venta
               </label>
-              <input 
-                type="date" 
-                value={fechaVenta} 
-                onChange={(e) => setFechaVenta(e.target.value)}
+              <input type="date" value={fechaVenta} onChange={(e) => setFechaVenta(e.target.value)}
                 max={new Date().toISOString().split('T')[0]}
-                className="w-full px-2 sm:px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md focus:outline-none focus:ring-2 focus:ring-jmr-primary dark:bg-gray-700 dark:text-gray-100 text-sm" 
-              />
+                className="w-full px-2 sm:px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md focus:outline-none focus:ring-2 focus:ring-jmr-primary dark:bg-gray-700 dark:text-gray-100 text-sm" />
+            </div>
+
+            <div className="space-y-2 mb-3">
+              <label className="block text-xs sm:text-sm font-medium text-gray-700 dark:text-gray-300">
+                🕐 Hora
+              </label>
+              <div className="flex gap-2">
+                <input
+                  type="time"
+                  value={horaVenta}
+                  onChange={e => { setHoraVenta(e.target.value); setHoraVentaAuto(false); }}
+                  disabled={horaVentaAuto}
+                  className="flex-1 px-2 sm:px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md focus:outline-none focus:ring-2 focus:ring-jmr-primary dark:bg-gray-700 dark:text-gray-100 text-sm disabled:opacity-50"
+                />
+                <button
+                  type="button"
+                  onClick={() => {
+                    const ahora = new Date().toTimeString().slice(0, 5);
+                    setHoraVenta(ahora);
+                    setHoraVentaAuto(prev => !prev);
+                  }}
+                  className={`px-3 py-2 rounded-md text-xs font-semibold border transition-colors whitespace-nowrap ${
+                    horaVentaAuto
+                      ? 'bg-jmr-primary text-white border-jmr-primary'
+                      : 'bg-white dark:bg-gray-700 text-gray-600 dark:text-gray-300 border-gray-300 dark:border-gray-600 hover:bg-gray-50'
+                  }`}
+                >
+                  {horaVentaAuto ? '⚡ Ahora' : 'Manual'}
+                </button>
+              </div>
             </div>
 
             <div className="space-y-2 mb-3">
@@ -359,14 +453,106 @@ export default function VentasPage() {
                 className="w-full px-2 sm:px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md focus:outline-none focus:ring-2 focus:ring-jmr-primary dark:bg-gray-700 dark:text-gray-100 text-sm" />
             </div>
 
+            {/* Selector vendedor — solo admin */}
+            {isAdmin() && (
+              <div className="space-y-2 mb-3">
+                <div className="bg-purple-50 dark:bg-purple-900/20 border border-purple-200 dark:border-purple-700 rounded-lg p-3">
+                  <label className="block text-xs sm:text-sm font-medium text-gray-700 dark:text-gray-300 mb-1 flex items-center gap-1">
+                    <UserCircle className="w-3 h-3 text-purple-600" /> Vendedor
+                  </label>
+                  <select value={vendedorId} onChange={(e) => setVendedorId(e.target.value)}
+                    className="w-full px-2 sm:px-3 py-2 border border-purple-300 dark:border-purple-600 rounded-md focus:outline-none focus:ring-2 focus:ring-purple-500 text-gray-900 dark:text-gray-100 dark:bg-gray-700 text-sm">
+                    <option value="">Yo (usuario actual)</option>
+                    {usuarios.map(u => (
+                      <option key={u.id} value={u.id}>{u.nombre} — {u.rol === 'ADMINISTRADOR' ? 'Admin' : 'Empleado'}</option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+            )}
+
             <button onClick={finalizarVenta} disabled={carrito.length === 0 || procesando}
               className="w-full bg-jmr-primary hover:bg-jmr-secondary text-white py-2 sm:py-3 rounded-lg font-semibold disabled:bg-gray-400 transition-colors flex items-center justify-center gap-2 text-sm sm:text-base">
               <DollarSign className="w-4 h-4 sm:w-5 sm:h-5" />
-              {procesando ? 'Procesando...' : 'Finalizar Venta'}
+              {procesando ? 'Procesando...' : `Finalizar Venta — $${calcularTotal().toFixed(2)}`}
             </button>
           </div>
         </div>
       </div>
+
+      {/* ── Modal ítem manual ── */}
+      {modalManual && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white dark:bg-gray-800 rounded-lg shadow-xl max-w-sm w-full p-6">
+            <div className="flex items-center justify-between mb-4">
+              <h2 className="text-lg font-bold text-gray-800 dark:text-gray-100 flex items-center gap-2">
+                <Tag className="w-5 h-5 text-orange-500" /> Ítem manual — Varios
+              </h2>
+              <button onClick={() => setModalManual(false)} className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-300">
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <p className="text-xs text-gray-500 dark:text-gray-400 mb-4">
+              Se registra en la categoría <strong>Varios</strong> y suma al total de ingresos y ventas.
+            </p>
+
+            <div className="space-y-3">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Descripción *</label>
+                <input
+                  type="text"
+                  placeholder="Ej: Anillos, Aritos, Trabas..."
+                  value={itemManualDesc}
+                  onChange={e => setItemManualDesc(e.target.value)}
+                  onKeyDown={e => e.key === 'Enter' && agregarItemManual()}
+                  autoFocus
+                  className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md focus:outline-none focus:ring-2 focus:ring-orange-500 text-gray-900 dark:text-gray-100 dark:bg-gray-700"
+                />
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Precio *</label>
+                  <input
+                    type="number"
+                    placeholder="0.00"
+                    value={itemManualPrecio}
+                    onChange={e => setItemManualPrecio(e.target.value)}
+                    min="0" step="0.01"
+                    className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md focus:outline-none focus:ring-2 focus:ring-orange-500 text-gray-900 dark:text-gray-100 dark:bg-gray-700"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Cantidad *</label>
+                  <input
+                    type="number"
+                    value={itemManualCant}
+                    onChange={e => setItemManualCant(e.target.value)}
+                    min="1"
+                    className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md focus:outline-none focus:ring-2 focus:ring-orange-500 text-gray-900 dark:text-gray-100 dark:bg-gray-700"
+                  />
+                </div>
+              </div>
+              {itemManualPrecio && itemManualCant && (
+                <p className="text-sm text-center font-semibold text-orange-600 dark:text-orange-400">
+                  Subtotal: ${(parseFloat(itemManualPrecio || 0) * parseInt(itemManualCant || 1)).toFixed(2)}
+                </p>
+              )}
+            </div>
+
+            <div className="flex gap-3 mt-5">
+              <button onClick={agregarItemManual}
+                className="flex-1 bg-orange-500 hover:bg-orange-600 text-white py-2 px-4 rounded-md transition-colors font-semibold flex items-center justify-center gap-2">
+                <Plus className="w-4 h-4" /> Agregar al carrito
+              </button>
+              <button onClick={() => setModalManual(false)}
+                className="flex-1 bg-gray-300 dark:bg-gray-600 hover:bg-gray-400 dark:hover:bg-gray-500 text-gray-800 dark:text-gray-100 py-2 px-4 rounded-md transition-colors">
+                Cancelar
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Modal editar producto */}
       {modalEditar && (
@@ -394,14 +580,12 @@ export default function VentasPage() {
                 <input type="text" value={editForm.nombre} onChange={(e) => setEditForm({ ...editForm, nombre: e.target.value })}
                   className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 text-gray-900 dark:text-gray-100 dark:bg-gray-700" />
               </div>
-
               <div>
                 <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Código de Producto</label>
                 <input type="text" value={editForm.codigoProducto} onChange={(e) => setEditForm({ ...editForm, codigoProducto: e.target.value })}
                   placeholder="Ej: ABC-001"
                   className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 text-gray-900 dark:text-gray-100 dark:bg-gray-700" />
               </div>
-
               <div className="grid grid-cols-2 gap-4">
                 <div>
                   <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Precio *</label>
@@ -416,9 +600,7 @@ export default function VentasPage() {
                   <input type="number" value={editForm.stock} onChange={(e) => setEditForm({ ...editForm, stock: e.target.value })}
                     min="0"
                     className={`w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 text-gray-900 dark:text-gray-100 dark:bg-gray-700 ${
-                      modalEditar.stock === 0
-                        ? 'border-red-400 focus:ring-red-500'
-                        : 'border-gray-300 dark:border-gray-600 focus:ring-blue-500'
+                      modalEditar.stock === 0 ? 'border-red-400 focus:ring-red-500' : 'border-gray-300 dark:border-gray-600 focus:ring-blue-500'
                     }`} />
                 </div>
               </div>

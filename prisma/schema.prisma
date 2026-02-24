@@ -71,30 +71,52 @@ model Producto {
 model Movimiento {
   id                Int      @id @default(autoincrement())
   productoId        Int
-  tipo              String
+  tipo              String   // 'ENTRADA', 'SALIDA', 'VENTA'
   cantidad          Int
   motivo            String?
+  
+  // ⭐ RELACIÓN CON VENTA
+  // Si tipo='VENTA', este campo contiene el ID de la venta relacionada
+  // Para ENTRADA/SALIDA, es NULL
+  ventaId           Int?
+  
   usuarioId         Int?
+  
   // ── Cancelación ──
   cancelado         Boolean  @default(false)
   motivoCancelacion String?
   canceladoAt       DateTime?
-  createdAt         DateTime @default(now())
+  
+  createdAt         DateTime
+  
+  // ── Relaciones ──
   producto          Producto @relation(fields: [productoId], references: [id])
   usuario           Usuario? @relation(fields: [usuarioId], references: [id])
+  venta             Venta?   @relation(fields: [ventaId], references: [id], onDelete: SetNull)
+  
+  @@index([productoId])
+  @@index([ventaId])
+  @@index([usuarioId])
+  @@index([createdAt])
 }
 
 model Venta {
   id            Int         @id @default(autoincrement())
   total         Float
-  metodoPago    String
+  metodoPago    String      // ⭐ ÚNICO LUGAR donde se guarda el método de pago
   clienteNombre String?
   clienteDni    String?
   observaciones String?
   usuarioId     Int?
-  createdAt     DateTime    @default(now())
+  createdAt     DateTime
+  
+  // ── Relaciones ──
   items         VentaItem[]
+  movimientos   Movimiento[] // ⭐ Una venta puede tener múltiples movimientos
   usuario       Usuario?    @relation(fields: [usuarioId], references: [id])
+  
+  @@index([usuarioId])
+  @@index([createdAt])
 }
 
 model VentaItem {
@@ -106,6 +128,9 @@ model VentaItem {
   subtotal   Float
   venta      Venta    @relation(fields: [ventaId], references: [id], onDelete: Cascade)
   producto   Producto @relation(fields: [productoId], references: [id])
+  
+  @@index([ventaId])
+  @@index([productoId])
 }
 
 model PrecioHistorico {
@@ -116,4 +141,7 @@ model PrecioHistorico {
   motivo      String?
   createdAt   DateTime @default(now())
   producto    Producto @relation(fields: [productoId], references: [id])
+  
+  @@index([productoId])
+  @@index([createdAt])
 }

@@ -47,6 +47,11 @@ export async function GET(request) {
             }
           }
         },
+        movimientos: {
+          include: {
+            producto: true
+          }
+        },
         usuario: {
           select: {
             id: true,
@@ -77,6 +82,7 @@ export async function POST(request) {
     const body = await request.json();
     const { items, metodoPago, clienteNombre, clienteDni, observaciones, fecha } = body;
 
+    // Validaciones
     if (!items || items.length === 0) {
       return NextResponse.json(
         { error: 'La venta debe tener al menos un producto' },
@@ -130,14 +136,26 @@ export async function POST(request) {
     // Preparar fecha
     let fechaVenta = new Date();
     if (fecha) {
-      // Si se proporciona fecha, usarla
       const fechaParts = fecha.split('-');
-      fechaVenta = new Date(parseInt(fechaParts[0]), parseInt(fechaParts[1]) - 1, parseInt(fechaParts[2]), 12, 0, 0);
+      fechaVenta = new Date(
+        parseInt(fechaParts[0]), 
+        parseInt(fechaParts[1]) - 1, 
+        parseInt(fechaParts[2]), 
+        12, 0, 0
+      );
     }
 
-    // Crear venta con items y actualizar stock en una transacción
+    // Validar que la fecha no sea futura
+    if (fechaVenta > new Date()) {
+      return NextResponse.json(
+        { error: 'No se puede crear una venta con fecha futura' },
+        { status: 400 }
+      );
+    }
+
+    // Crear venta con items, movimientos y actualizar stock en una transacción
     const venta = await prisma.$transaction(async (tx) => {
-      // Crear la venta
+      // 1. Crear la venta
       const nuevaVenta = await tx.venta.create({
         data: {
           total,
@@ -172,8 +190,9 @@ export async function POST(request) {
         }
       });
 
-      // Actualizar stock de cada producto y crear movimiento
+      // 2. Para cada producto: actualizar stock y crear movimiento relacionado
       for (const item of items) {
+        // Actualizar stock
         await tx.producto.update({
           where: { id: item.productoId },
           data: {
@@ -183,14 +202,14 @@ export async function POST(request) {
           }
         });
 
-        // ✅ CORREGIDO: Crear movimiento de tipo VENTA con metodoPago
+        // ⭐ Crear movimiento con relación a la venta (ventaId)
         await tx.movimiento.create({
           data: {
             productoId: item.productoId,
             tipo: 'VENTA',
             cantidad: item.cantidad,
+            ventaId: nuevaVenta.id,  // ⭐ RELACIÓN con la venta
             motivo: `Venta #${nuevaVenta.id}`,
-            metodoPago: metodoPago, // ✅ Guardar método de pago
             usuarioId: user?.id || null,
             createdAt: fechaVenta,
           }
@@ -204,7 +223,7 @@ export async function POST(request) {
   } catch (error) {
     console.error('Error al crear venta:', error);
     return NextResponse.json(
-      { error: 'Error al procesar la venta' },
+      { error: 'Error al procesar la venta: ' + error.message },
       { status: 500 }
     );
   }

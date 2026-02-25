@@ -31,43 +31,56 @@ function buildFecha(fecha, hora) {
   return new Date(y, m - 1, d, now.getHours(), now.getMinutes(), now.getSeconds());
 }
 
-// GET - Obtener todos los movimientos
-export async function GET() {
+export async function GET(request) {
   try {
-    const movimientos = await prisma.movimiento.findMany({
-      include: {
-        producto: {
-          include: {
-            categoria: true
-          }
+    const { searchParams } = new URL(request.url);
+    const page     = Math.max(1, parseInt(searchParams.get('page')     || '1'));
+    const pageSize = Math.min(50, parseInt(searchParams.get('pageSize') || '30'));
+    const skip     = (page - 1) * pageSize;
+
+    const [movimientos, total] = await Promise.all([
+      prisma.movimiento.findMany({
+        select: {
+          id: true,
+          tipo: true,
+          cantidad: true,
+          motivo: true,
+          cancelado: true,
+          motivoCancelacion: true,
+          canceladoAt: true,
+          createdAt: true,
+          producto: {
+            select: {
+              id: true,
+              nombre: true,
+              codigoProducto: true,
+              precio: true,
+              stock: true,
+              stockMinimo: true,
+              categoria: { select: { id: true, nombre: true } }
+            }
+          },
+          usuario: { select: { id: true, nombre: true, email: true } },
+          venta: { select: { id: true, total: true, metodoPago: true } }
         },
-        usuario: {
-          select: {
-            id: true,
-            nombre: true,
-            email: true
-          }
-        },
-        // ✅ Incluir la venta relacionada para mostrar el precio
-        venta: {
-          select: {
-            id: true,
-            total: true,
-            metodoPago: true
-          }
-        }
-      },
-      orderBy: {
-        createdAt: 'desc',
-      },
-      take: 200,
+        orderBy: { createdAt: 'desc' },
+        skip,
+        take: pageSize,
+      }),
+      prisma.movimiento.count(),
+    ]);
+
+    return NextResponse.json({
+      movimientos,
+      pagination: {
+        page, pageSize, total,
+        totalPages: Math.ceil(total / pageSize),
+        hasNext: page < Math.ceil(total / pageSize),
+        hasPrev: page > 1,
+      }
     });
-    return NextResponse.json(movimientos);
   } catch (error) {
-    return NextResponse.json(
-      { error: 'Error al obtener movimientos' },
-      { status: 500 }
-    );
+    return NextResponse.json({ error: 'Error al obtener movimientos' }, { status: 500 });
   }
 }
 

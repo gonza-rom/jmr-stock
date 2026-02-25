@@ -139,7 +139,7 @@ export default function Home() {
                       {movimiento.tipo === 'ENTRADA' ? '+' : '-'}{movimiento.cantidad}
                     </p>
                     <p className="text-xs text-gray-500 dark:text-gray-400 whitespace-nowrap">
-                      {new Date(movimiento.createdAt).toLocaleDateString('es-AR')}
+                      {new Date(movimiento.createdAt).toLocaleDateString('es-AR', { timeZone: 'America/Argentina/Buenos_Aires' })}
                     </p>
                   </div>
                 </div>

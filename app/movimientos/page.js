@@ -48,6 +48,10 @@ export default function MovimientosPage() {
     usuarioId: ''
   });
 
+  // ── Paginación historial ──
+  const [paginacion, setPaginacion] = useState({ page: 1, total: 0, totalPages: 1, hasNext: false, hasPrev: false });
+  const [paginaMovimientos, setPaginaMovimientos] = useState(1);
+
   // ── POS (VENTA) ──
   const [posProductos, setPosProductos] = useState([]);
   const [posTotalProductos, setPosTotalProductos] = useState(0);
@@ -90,20 +94,24 @@ export default function MovimientosPage() {
   // ════════════════════════════════════════
   // Carga inicial
   // ════════════════════════════════════════
-  useEffect(() => {
-    fetchMovimientos();
-    if (isAdmin()) fetchUsuarios();
-  }, [isAdmin]);
-
-  const fetchMovimientos = async () => {
+    const fetchMovimientos = async (pagina = 1) => {
     setLoading(true);
     try {
-      const res = await fetch('/api/movimientos');
-      setMovimientos(await res.json());
+      const res = await fetch(`/api/movimientos?page=${pagina}&pageSize=30`);
+      const data = await res.json();
+      setMovimientos(data.movimientos ?? []);
+      setPaginacion(data.pagination ?? { page: 1, total: 0, totalPages: 1, hasNext: false, hasPrev: false });
+      setPaginaMovimientos(pagina);
     } catch { console.error('Error al cargar movimientos'); }
     finally { setLoading(false); }
   };
 
+  // Por esto:
+  useEffect(() => {
+    fetchMovimientos();
+    if (isAdmin()) fetchUsuarios();
+  }, []);
+  
   const fetchUsuarios = async () => {
     try {
       const res = await fetch('/api/usuarios');
@@ -329,7 +337,7 @@ export default function MovimientosPage() {
       if (!res.ok) { const e = await res.json(); throw new Error(e.error); }
       setModalCancelar(null);
       setMotivoCancelacion('');
-      fetchMovimientos();
+      fetchMovimientos(paginaMovimientos);
     } catch (err) {
       alert(err.message || 'Error al cancelar movimiento');
     } finally { setCancelando(false); }
@@ -338,12 +346,15 @@ export default function MovimientosPage() {
   const abrirEdicion = (movimiento) => {
     if (movimiento.cancelado) { alert('No se puede editar un movimiento cancelado'); return; }
     setModalEditar(movimiento);
+    const fechaAR = new Date(new Date(movimiento.createdAt).toLocaleString('en-US', { timeZone: 'America/Argentina/Buenos_Aires' }));
     setEditForm({
       cantidad: movimiento.cantidad.toString(),
       motivo: movimiento.motivo || '',
-      fecha: new Date(movimiento.createdAt).toISOString().split('T')[0],
+      fecha: fechaAR.toISOString().split('T')[0],
+      hora: `${String(fechaAR.getHours()).padStart(2, '0')}:${String(fechaAR.getMinutes()).padStart(2, '0')}`,
       usuarioId: movimiento.usuarioId?.toString() || '',
     });
+
   };
 
   const guardarEdicion = async () => {
@@ -357,12 +368,13 @@ export default function MovimientosPage() {
           cantidad: parseInt(editForm.cantidad),
           motivo: editForm.motivo,
           fecha: editForm.fecha,
+          hora: editForm.hora || null,
           usuarioId: editForm.usuarioId ? parseInt(editForm.usuarioId) : null,
         }),
       });
       if (!res.ok) { const e = await res.json(); throw new Error(e.error); }
       setModalEditar(null);
-      fetchMovimientos();
+      fetchMovimientos(paginaMovimientos);
       alert('Movimiento actualizado correctamente');
     } catch (err) {
       alert(err.message || 'Error al actualizar movimiento');
@@ -917,7 +929,53 @@ export default function MovimientosPage() {
               )}
             </div>
           )}
-
+                  {/* ── Paginación ── */}
+                  <div className="flex items-center justify-between mt-4">
+                    <div className="text-sm text-gray-600 dark:text-gray-400">
+                      Página {paginacion.page} de {paginacion.totalPages} ({paginacion.total} movimientos)
+                    </div>
+                    <div className="flex gap-2">
+                      <button
+                        onClick={() => fetchMovimientos(paginaMovimientos - 1)}
+                        disabled={!paginacion.hasPrev}
+                        className="px-4 py-2 bg-gray-200 dark:bg-gray-700 hover:bg-gray-300 dark:hover:bg-gray-600 rounded-md disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                      >
+                        Anterior
+                      </button>
+                      <button
+                        onClick={() => fetchMovimientos(paginaMovimientos + 1)}
+                        disabled={!paginacion.hasNext}
+                        className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-md disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                      >
+                        Siguiente
+                      </button>
+                    </div>
+                  </div>{paginacion.totalPages > 1 && (
+          <div className="flex items-center justify-between pt-2 border-t dark:border-gray-700">
+            <span className="text-sm text-gray-600 dark:text-gray-400">
+              {paginacion.total} movimientos — Página {paginacion.page} de {paginacion.totalPages}
+            </span>
+            <div className="flex gap-1">
+              <button
+                onClick={() => fetchMovimientos(paginacion.page - 1)}
+                disabled={!paginacion.hasPrev}
+                className="p-1.5 border border-gray-300 dark:border-gray-600 rounded disabled:opacity-40 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors"
+              >
+                <ChevronLeft className="w-4 h-4" />
+              </button>
+              <span className="px-3 py-1 text-sm font-medium text-gray-700 dark:text-gray-300">
+                {paginacion.page}/{paginacion.totalPages}
+              </span>
+              <button
+                onClick={() => fetchMovimientos(paginacion.page + 1)}
+                disabled={!paginacion.hasNext}
+                className="p-1.5 border border-gray-300 dark:border-gray-600 rounded disabled:opacity-40 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors"
+              >
+                <ChevronRight className="w-4 h-4" />
+              </button>
+            </div>
+          </div>
+        )}
           <div className="text-sm text-gray-600 dark:text-gray-400">
             Mostrando {movimientosFiltrados.length} de {movimientos.length} movimientos
           </div>
@@ -955,11 +1013,14 @@ export default function MovimientosPage() {
                   {movimientosFiltrados.map((m) => (
                     <tr key={m.id} className={`hover:bg-gray-50 dark:hover:bg-gray-700/50 ${m.cancelado ? 'opacity-50' : ''}`}>
                       <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400">
-                        {new Date(m.createdAt).toLocaleString('es-AR')}
-                        {m.cancelado && <div className="text-xs text-red-500 mt-0.5">Cancelado {m.canceladoAt ? new Date(m.canceladoAt).toLocaleDateString('es-AR') : ''}</div>}
+                        {new Date(m.createdAt).toLocaleString('es-AR', { timeZone: 'America/Argentina/Buenos_Aires', hour12: false })}
+                        {m.cancelado && <div className="text-xs text-red-500 mt-0.5">Cancelado {m.canceladoAt ? new Date(m.canceladoAt).toLocaleDateString('es-AR', { timeZone: 'America/Argentina/Buenos_Aires' }) : ''}</div>}
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap">
                         <div className="text-sm font-medium text-gray-900 dark:text-gray-100">{m.producto.nombre}</div>
+                        {m.producto.codigoProducto && (
+                          <div className="text-xs text-blue-600 dark:text-blue-400 font-medium">{m.producto.codigoProducto}</div>
+                        )}
                         <div className="text-sm text-gray-500 dark:text-gray-400">{m.producto.categoria.nombre}</div>
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap">
@@ -1071,6 +1132,11 @@ export default function MovimientosPage() {
                   <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Fecha</label>
                   <input type="date" value={editForm.fecha} onChange={e => setEditForm({ ...editForm, fecha: e.target.value })}
                     max={new Date().toISOString().split('T')[0]}
+                    className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 text-gray-900 dark:text-gray-100 dark:bg-gray-700" />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Hora</label>
+                  <input type="time" value={editForm.hora || ''} onChange={e => setEditForm({ ...editForm, hora: e.target.value })}
                     className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 text-gray-900 dark:text-gray-100 dark:bg-gray-700" />
                 </div>
                 <div>

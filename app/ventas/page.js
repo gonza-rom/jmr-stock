@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState, useCallback } from 'react';
+import { useEffect, useState, useCallback, useRef } from 'react';
 import { Search, Plus, Minus, Trash2, ShoppingCart, DollarSign, User, CreditCard, PlusCircle, ChevronLeft, ChevronRight, Edit, AlertTriangle, X, Save, Calendar, UserCircle, Tag } from 'lucide-react';
 import Image from 'next/image';
 import PageWrapper from '@/components/PageWrapper';
@@ -81,12 +81,15 @@ export default function VentasPage() {
     if (isAdmin()) {
       fetch('/api/usuarios').then(r => r.json()).then(data => setUsuarios(data.filter(u => u.activo))).catch(console.error);
     }
-  }, [fetchProductos, isAdmin]);
+  }, []);
 
+  // DESPUÉS — usar ref para saltear el primer render
+  const montado = useRef(false);
   useEffect(() => {
+    if (!montado.current) { montado.current = true; return; }
     setPaginaActual(1);
     fetchProductos(1, busquedaDebounced);
-  }, [busquedaDebounced, fetchProductos]);
+  }, [busquedaDebounced]);
 
   const irAPagina = (p) => { setPaginaActual(p); fetchProductos(p, busquedaDebounced); };
 

@@ -37,7 +37,7 @@ export async function PUT(request, context) {
     if (isNaN(id)) return NextResponse.json({ error: 'ID inválido' }, { status: 400 });
 
     const body = await request.json();
-    const { cantidad, motivo, fecha, usuarioId } = body;
+    const { cantidad, motivo, fecha, hora, usuarioId } = body;
 
     // Obtener el movimiento original
     const movimientoOriginal = await prisma.movimiento.findUnique({
@@ -80,8 +80,11 @@ export async function PUT(request, context) {
     // Preparar fecha si cambió
     let fechaActualizada = movimientoOriginal.createdAt;
     if (fecha) {
-      const fechaParts = fecha.split('-');
-      fechaActualizada = new Date(parseInt(fechaParts[0]), parseInt(fechaParts[1]) - 1, parseInt(fechaParts[2]), 12, 0, 0);
+      if (hora) {
+        fechaActualizada = new Date(`${fecha}T${hora}:00-03:00`);
+      } else {
+        fechaActualizada = new Date(`${fecha}T12:00:00-03:00`);
+      }
     }
 
     // Actualizar en transacción

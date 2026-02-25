@@ -29,10 +29,10 @@ export default function Home() {
         fetch('/api/productos/stats'),
         fetch('/api/categorias'),
         fetch('/api/proveedores'),
-        fetch('/api/movimientos')
+        fetch('/api/movimientos?page=1&pageSize=5')
       ]);
 
-      const [productosStats, categorias, proveedores, movimientos] = await Promise.all([
+      const [productosStats, categorias, proveedores, movimientosData] = await Promise.all([
         productosStatsRes.json(),
         categoriasRes.json(),
         proveedoresRes.json(),
@@ -40,14 +40,14 @@ export default function Home() {
       ]);
 
       // ✅ FILTRAR movimientos cancelados de "Últimos Movimientos"
-      const movimientosActivos = movimientos.filter(m => !m.cancelado);
+      const movimientosActivos = (movimientosData.movimientos ?? []).filter(m => !m.cancelado);
 
       setStats({
         totalProductos: productosStats.totalProductos ?? 0,
         totalCategorias: categorias.length,
         totalProveedores: proveedores.length,
         productosStockBajo: productosStats.productosStockBajo ?? [],
-        movimientosRecientes: movimientosActivos.slice(0, 5)
+        movimientosRecientes: movimientosActivos
       });
     } catch (error) {
       console.error('Error al cargar estadísticas:', error);

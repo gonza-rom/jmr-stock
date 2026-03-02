@@ -1,54 +1,39 @@
 'use client';
 
 import { useEffect, useState } from 'react';
+import { useRouter } from 'next/navigation';
 import { Package, AlertTriangle, TrendingUp, TrendingDown, ChevronLeft, ChevronRight } from 'lucide-react';
+import { useAuth } from '@/contexts/AuthContext';
 import PageWrapper from '@/components/PageWrapper';
 
 const ITEMS_PER_PAGE = 5;
 
 export default function Home() {
-  
-  const [stats, setStats] = useState({
-    totalProductos: 0,
-    totalCategorias: 0,
-    totalProveedores: 0,
-    productosStockBajo: [],
-    movimientosRecientes: []
-  });
+  const { user, loading: authLoading } = useAuth();
+  const router = useRouter();
+
+  const [stats, setStats] = useState(null);
   const [loading, setLoading] = useState(true);
   const [paginaStockBajo, setPaginaStockBajo] = useState(1);
 
+  // Redirigir si no hay sesión una vez que el auth terminó de cargar
   useEffect(() => {
+    if (!authLoading && !user) {
+      router.replace('/login');
+    }
+  }, [authLoading, user, router]);
+
+  useEffect(() => {
+    if (!user) return; // esperar a que auth resuelva
     fetchStats();
-  }, []);
+  }, [user]);
 
   const fetchStats = async () => {
     try {
-      // ✅ OPTIMIZADO: 3 fetches livianos en vez de 4 fetches pesados
-      const [productosStatsRes, categoriasRes, proveedoresRes, movimientosRes] = await Promise.all([
-        fetch('/api/productos/stats'),
-        fetch('/api/categorias'),
-        fetch('/api/proveedores'),
-        fetch('/api/movimientos?page=1&pageSize=5')
-      ]);
-
-      const [productosStats, categorias, proveedores, movimientosData] = await Promise.all([
-        productosStatsRes.json(),
-        categoriasRes.json(),
-        proveedoresRes.json(),
-        movimientosRes.json()
-      ]);
-
-      // ✅ FILTRAR movimientos cancelados de "Últimos Movimientos"
-      const movimientosActivos = (movimientosData.movimientos ?? []).filter(m => !m.cancelado);
-
-      setStats({
-        totalProductos: productosStats.totalProductos ?? 0,
-        totalCategorias: categorias.length,
-        totalProveedores: proveedores.length,
-        productosStockBajo: productosStats.productosStockBajo ?? [],
-        movimientosRecientes: movimientosActivos
-      });
+      const res = await fetch('/api/dashboard');
+      if (!res.ok) throw new Error('Error al cargar dashboard');
+      const data = await res.json();
+      setStats(data);
     } catch (error) {
       console.error('Error al cargar estadísticas:', error);
     } finally {
@@ -56,14 +41,8 @@ export default function Home() {
     }
   };
 
-  // Paginación de stock bajo
-  const totalPaginasStockBajo = Math.ceil(stats.productosStockBajo.length / ITEMS_PER_PAGE);
-  const stockBajoPaginado = stats.productosStockBajo.slice(
-    (paginaStockBajo - 1) * ITEMS_PER_PAGE,
-    paginaStockBajo * ITEMS_PER_PAGE
-  );
-
-  if (loading) {
+  // Mientras auth o datos cargan
+  if (authLoading || (!stats && loading)) {
     return (
       <PageWrapper>
         <div className="flex justify-center items-center h-64">
@@ -73,6 +52,16 @@ export default function Home() {
     );
   }
 
+  // No renderizar nada si no hay sesión (la redirección ya fue disparada)
+  if (!user || !stats) return null;
+
+  // Paginación de stock bajo
+  const totalPaginasStockBajo = Math.ceil(stats.productosStockBajo.length / ITEMS_PER_PAGE);
+  const stockBajoPaginado = stats.productosStockBajo.slice(
+    (paginaStockBajo - 1) * ITEMS_PER_PAGE,
+    paginaStockBajo * ITEMS_PER_PAGE
+  );
+
   return (
     <PageWrapper>
       <div className="space-y-6 pb-8">
@@ -80,7 +69,7 @@ export default function Home() {
           <h1 className="text-2xl sm:text-3xl font-bold text-gray-800 dark:text-gray-100">Dashboard</h1>
           <p className="text-sm text-gray-500 dark:text-gray-400">Marroquinería JMR - Control de Stock</p>
         </div>
-        
+
         {/* Estadísticas principales */}
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-6">
           <div className="bg-white dark:bg-gray-800 p-4 sm:p-6 rounded-lg shadow-md border-l-4 border-jmr-primary">
@@ -157,7 +146,7 @@ export default function Home() {
                 Productos con Stock Bajo ({stats.productosStockBajo.length})
               </h2>
             </div>
-            
+
             <div className="space-y-2">
               {stockBajoPaginado.map((producto) => (
                 <div key={producto.id} className="bg-white dark:bg-gray-800 p-3 rounded border border-red-200 dark:border-red-800">
@@ -177,7 +166,6 @@ export default function Home() {
               ))}
             </div>
 
-            {/* Paginación stock bajo */}
             {totalPaginasStockBajo > 1 && (
               <div className="flex items-center justify-between mt-4 pt-4 border-t border-red-200 dark:border-red-800">
                 <div className="text-xs sm:text-sm text-red-700 dark:text-red-400">

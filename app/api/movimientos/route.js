@@ -10,15 +10,13 @@ async function getUserFromToken() {
     const cookieStore = await cookies();
     const token = cookieStore.get('auth-token')?.value;
     if (!token) return null;
-    const decoded = jwt.verify(token, JWT_SECRET);
-    return decoded;
-  } catch (error) {
+    return jwt.verify(token, JWT_SECRET);
+  } catch {
     return null;
   }
 }
 
 // Construye una fecha combinando fecha (YYYY-MM-DD) + hora opcional (HH:mm)
-// Si no hay hora manual, usa la hora actual del servidor
 function buildFecha(fecha, hora) {
   if (!fecha) return new Date();
   const [y, m, d] = fecha.split('-').map(Number);
@@ -26,7 +24,6 @@ function buildFecha(fecha, hora) {
     const [hh, mm] = hora.split(':').map(Number);
     return new Date(y, m - 1, d, hh, mm, 0);
   }
-  // Sin hora manual → hora actual del servidor
   const now = new Date();
   return new Date(y, m - 1, d, now.getHours(), now.getMinutes(), now.getSeconds());
 }
@@ -38,48 +35,64 @@ export async function GET(request) {
     const pageSize = Math.min(50, parseInt(searchParams.get('pageSize') || '30'));
     const skip     = (page - 1) * pageSize;
 
+    // Filtros opcionales desde query params (para uso futuro server-side)
+    const tipo      = searchParams.get('tipo')      || '';
+    const fechaDesde = searchParams.get('fechaDesde') || '';
+    const fechaHasta = searchParams.get('fechaHasta') || '';
+
+    const where = {};
+    if (tipo)       where.tipo = tipo;
+    if (fechaDesde) where.createdAt = { ...(where.createdAt || {}), gte: new Date(fechaDesde) };
+    if (fechaHasta) where.createdAt = { ...(where.createdAt || {}), lte: new Date(fechaHasta + 'T23:59:59') };
+
+    // count y datos usan el mismo where → el total es siempre consistente con los filtros
     const [movimientos, total] = await Promise.all([
       prisma.movimiento.findMany({
+        where,
         select: {
-          id: true,
-          tipo: true,
-          cantidad: true,
-          motivo: true,
-          cancelado: true,
+          id:                true,
+          tipo:              true,
+          cantidad:          true,
+          motivo:            true,
+          cancelado:         true,
           motivoCancelacion: true,
-          canceladoAt: true,
-          createdAt: true,
+          canceladoAt:       true,
+          createdAt:         true,
+          usuarioId:         true,
           producto: {
             select: {
-              id: true,
-              nombre: true,
+              id:             true,
+              nombre:         true,
               codigoProducto: true,
-              precio: true,
-              stock: true,
-              stockMinimo: true,
-              categoria: { select: { id: true, nombre: true } }
-            }
+              precio:         true,
+              stock:          true,
+              stockMinimo:    true,
+              categoria: { select: { id: true, nombre: true } },
+            },
           },
           usuario: { select: { id: true, nombre: true, email: true } },
-          venta: { select: { id: true, total: true, metodoPago: true } }
+          venta:   { select: { id: true, total: true, metodoPago: true } },
         },
         orderBy: { createdAt: 'desc' },
         skip,
         take: pageSize,
       }),
-      prisma.movimiento.count(),
+      prisma.movimiento.count({ where }), // ← mismo where, siempre consistente
     ]);
 
     return NextResponse.json({
       movimientos,
       pagination: {
-        page, pageSize, total,
+        page,
+        pageSize,
+        total,
         totalPages: Math.ceil(total / pageSize),
         hasNext: page < Math.ceil(total / pageSize),
         hasPrev: page > 1,
-      }
+      },
     });
   } catch (error) {
+    console.error('Error al obtener movimientos:', error);
     return NextResponse.json({ error: 'Error al obtener movimientos' }, { status: 500 });
   }
 }
@@ -123,7 +136,7 @@ export async function POST(request) {
     const usuarioFinal = usuarioIdSeleccionado ? parseInt(usuarioIdSeleccionado) : (user?.id || null);
 
     const producto = await prisma.producto.findUnique({
-      where: { id: parseInt(productoId) }
+      where: { id: parseInt(productoId) },
     });
 
     if (!producto) {
@@ -143,7 +156,6 @@ export async function POST(request) {
       }
     }
 
-    // ✅ Usar hora real o manual
     const fechaCreacion = buildFecha(fecha, hora);
 
     const resultado = await prisma.$transaction(async (tx) => {
@@ -161,10 +173,10 @@ export async function POST(request) {
                 productoId: parseInt(productoId),
                 cantidad: cantidadNum,
                 precioUnit: producto.precio,
-                subtotal: producto.precio * cantidadNum
-              }
-            }
-          }
+                subtotal: producto.precio * cantidadNum,
+              },
+            },
+          },
         });
         ventaId = venta.id;
       }
@@ -175,20 +187,20 @@ export async function POST(request) {
           tipo,
           cantidad: cantidadNum,
           motivo: tipo === 'VENTA' ? (motivo || `Venta #${ventaId}`) : motivo,
-          ventaId: ventaId,
+          ventaId,
           usuarioId: usuarioFinal,
           createdAt: fechaCreacion,
         },
         include: {
           producto: { include: { categoria: true } },
           usuario: { select: { id: true, nombre: true, email: true } },
-          venta: { select: { id: true, total: true, metodoPago: true } }
-        }
+          venta: { select: { id: true, total: true, metodoPago: true } },
+        },
       });
 
       await tx.producto.update({
         where: { id: parseInt(productoId) },
-        data: { stock: nuevoStock }
+        data: { stock: nuevoStock },
       });
 
       return movimiento;
@@ -225,7 +237,7 @@ export async function PUT(request) {
 
     const movimientoOriginal = await prisma.movimiento.findUnique({
       where: { id: parseInt(id) },
-      include: { producto: true }
+      include: { producto: true },
     });
 
     if (!movimientoOriginal) {
@@ -240,16 +252,11 @@ export async function PUT(request) {
     }
 
     const cantidadNueva = parseInt(cantidad);
-    const cantidadOriginal = movimientoOriginal.cantidad;
-    const diferencia = cantidadNueva - cantidadOriginal;
-
+    const diferencia = cantidadNueva - movimientoOriginal.cantidad;
     let nuevoStock = movimientoOriginal.producto.stock;
+
     if (diferencia !== 0) {
-      if (movimientoOriginal.tipo === 'ENTRADA') {
-        nuevoStock += diferencia;
-      } else {
-        nuevoStock -= diferencia;
-      }
+      nuevoStock += movimientoOriginal.tipo === 'ENTRADA' ? diferencia : -diferencia;
       if (nuevoStock < 0) {
         return NextResponse.json(
           { error: `Stock insuficiente. El stock quedaría en ${nuevoStock}` },
@@ -258,7 +265,6 @@ export async function PUT(request) {
       }
     }
 
-    // ✅ Usar hora real o manual también en edición
     const fechaActualizada = fecha
       ? buildFecha(fecha, hora)
       : movimientoOriginal.createdAt;
@@ -275,14 +281,14 @@ export async function PUT(request) {
         include: {
           producto: { include: { categoria: true } },
           usuario: { select: { id: true, nombre: true, email: true } },
-          venta: { select: { id: true, total: true, metodoPago: true } }
-        }
+          venta: { select: { id: true, total: true, metodoPago: true } },
+        },
       });
 
       if (diferencia !== 0) {
         await tx.producto.update({
           where: { id: movimientoOriginal.productoId },
-          data: { stock: nuevoStock }
+          data: { stock: nuevoStock },
         });
       }
 
@@ -292,9 +298,6 @@ export async function PUT(request) {
     return NextResponse.json(movimientoActualizado);
   } catch (error) {
     console.error('Error al editar movimiento:', error);
-    return NextResponse.json(
-      { error: 'Error al editar movimiento' },
-      { status: 500 }
-    );
+    return NextResponse.json({ error: 'Error al editar movimiento' }, { status: 500 });
   }
 }
